@@ -1,0 +1,58 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LogOut, User } from 'lucide-react';
+import { useAuth } from '../../app/providers/AuthProvider.jsx';
+
+export function Header() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
+  return (
+    <header className="app-header">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span className="label-md" style={{ color: 'var(--color-secondary)', fontWeight: '500' }}>SWT301 Project v1</span>
+      </div>
+      
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: 'var(--radius-full)',
+            backgroundColor: 'var(--color-surface-container-highest)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--color-primary)'
+          }}>
+            <User size={16} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--color-on-surface)' }}>
+              {user?.fullName || user?.username || 'Nhân viên'}
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--color-secondary)' }}>
+              {user?.role === 'ADMIN' ? 'Quản trị viên' : 'Nhân viên'}
+            </span>
+          </div>
+        </div>
+        
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="btn btn-secondary btn-sm"
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px' }}
+        >
+          <LogOut size={14} />
+          <span>Đăng xuất</span>
+        </button>
+      </div>
+    </header>
+  );
+}
+export default Header;
