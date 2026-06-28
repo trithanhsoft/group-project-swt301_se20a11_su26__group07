@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, RotateCcw } from 'lucide-react';
+import { Edit, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { recipeApi } from '../api/recipeApi.js';
 import { PageHeader } from '../../../components/layout/PageHeader.jsx';
 import { Button } from '../../../components/common/Button.jsx';
@@ -9,175 +9,193 @@ import { StatusBadge } from '../../../components/common/StatusBadge.jsx';
 import { Alert } from '../../../components/feedback/Alert.jsx';
 import { ConfirmDialog } from '../../../components/feedback/ConfirmDialog.jsx';
 import { Toast } from '../../../components/feedback/Toast.jsx';
-import { formatVND } from '../../../utils/currency.js';
+import { TextInput } from '../../../components/forms/TextInput.jsx';
 import { ROUTES } from '../../../constants/routes.js';
-
-const MOCK_RECIPES_KEY = 'mini_pos_recipes';
-const DEFAULT_MOCK_RECIPES = [
-  { id: 1, product_id: 1, product_name: 'Espresso', price: 25000, items: [{ ingredient_id: 1, name: 'Hat ca phe Robusta', quantity: 20, unit: 'GRAM' }] },
-  { id: 2, product_id: 2, product_name: 'Ca phe sua da', price: 29000, items: [{ ingredient_id: 1, name: 'Hat ca phe Robusta', quantity: 20, unit: 'GRAM' }, { ingredient_id: 2, name: 'Sua dac Ong Tho', quantity: 40, unit: 'ML' }] },
-  { id: 3, product_id: 3, product_name: 'Bac siu', price: 32000, items: [{ ingredient_id: 1, name: 'Hat ca phe Robusta', quantity: 10, unit: 'GRAM' }, { ingredient_id: 2, name: 'Sua dac Ong Tho', quantity: 60, unit: 'ML' }, { ingredient_id: 3, name: 'Sua tuoi khong duong', quantity: 80, unit: 'ML' }] },
-];
+import { formatVND } from '../../../utils/currency.js';
 
 export function RecipeListPage() {
   const navigate = useNavigate();
   const [recipes, setRecipes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isUsingMock, setIsUsingMock] = useState(false);
-  
+  const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [deleteId, setDeleteId] = useState(null);
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState('success');
 
-  const loadRecipes = async () => {
-    setIsLoading(true);
-    try {
-      const res = await recipeApi.getRecipes();
-      setRecipes(res.data || []);
-      setIsUsingMock(false);
-    } catch (err) {
-      const stored = localStorage.getItem(MOCK_RECIPES_KEY);
-      if (stored) {
-        setRecipes(JSON.parse(stored));
-      } else {
-        setRecipes(DEFAULT_MOCK_RECIPES);
-        localStorage.setItem(MOCK_RECIPES_KEY, JSON.stringify(DEFAULT_MOCK_RECIPES));
-      }
-      setIsUsingMock(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadRecipes();
-  }, []);
+    let isCancelled = false;
 
-  const showToast = (msg, type = 'success') => {
-    setToastMsg(msg);
-    setToastType(type);
-  };
+    const timer = setTimeout(() => {
+      const loadRecipes = async () => {
+        setIsLoading(true);
+        setError('');
 
-  const handleEdit = (id) => {
-    navigate(`/admin/recipes/${id}/edit`);
-  };
+        try {
+          const response = await recipeApi.getRecipes({
+            search: searchQuery.trim(),
+          });
 
-  const handleDeleteClick = (id) => {
-    setDeleteId(id);
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteId) return;
-
-    try {
-      if (isUsingMock) {
-        const updated = recipes.filter(r => r.id !== deleteId);
-        setRecipes(updated);
-        localStorage.setItem(MOCK_RECIPES_KEY, JSON.stringify(updated));
-        
-        const storedProducts = localStorage.getItem('mini_pos_products');
-        if (storedProducts) {
-          const products = JSON.parse(storedProducts);
-          const foundRecipe = recipes.find(r => r.id === deleteId);
-          if (foundRecipe) {
-            const updatedProducts = products.map(p => 
-              p.id === foundRecipe.product_id ? { ...p, has_recipe: false } : p
-            );
-            localStorage.setItem('mini_pos_products', JSON.stringify(updatedProducts));
+          if (!isCancelled) {
+            setRecipes(response.data.recipes || []);
+          }
+        } catch (loadError) {
+          if (!isCancelled) {
+            setRecipes([]);
+            setError(loadError.message || 'Khong tai duoc danh sach cong thuc.');
+          }
+        } finally {
+          if (!isCancelled) {
+            setIsLoading(false);
           }
         }
+      };
 
-        showToast('Xóa công thức thành công (Giả lập)');
-      } else {
-        await recipeApi.deleteRecipe(deleteId);
-        showToast('Xóa công thức thành công');
-        loadRecipes();
-      }
-    } catch (err) {
-      showToast(err.message || 'Xóa công thức thất bại.', 'error');
+      void loadRecipes();
+    }, 250);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [reloadNonce, searchQuery]);
+
+  const handleDelete = async () => {
+    if (!deleteId) {
+      return;
+    }
+
+    try {
+      await recipeApi.deleteRecipe(deleteId);
+      setToastType('success');
+      setToastMsg('Xoa cong thuc thanh cong.');
+      setReloadNonce((current) => current + 1);
+    } catch (deleteError) {
+      setToastType('error');
+      setToastMsg(deleteError.message || 'Xoa cong thuc that bai.');
     } finally {
       setDeleteId(null);
     }
   };
 
   const headers = [
-    { key: 'id', label: 'Mã CT', style: { width: '80px' } },
-    { key: 'product_name', label: 'Sản phẩm áp dụng', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.product_name || row.product?.name}</strong> },
-    { key: 'price', label: 'Đơn giá bán', render: (row) => formatVND(row.price || row.product?.price || 0) },
+    { key: 'id', label: 'Ma CT', style: { width: '90px' } },
     {
-      key: 'ingredients',
-      label: 'Nguyên liệu thành phần',
+      key: 'productName',
+      label: 'San pham ap dung',
+      render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.productName}</strong>,
+    },
+    {
+      key: 'productPrice',
+      label: 'Don gia ban',
+      style: { width: '140px' },
+      render: (row) => formatVND(row.productPrice),
+    },
+    {
+      key: 'productStatus',
+      label: 'Trang thai SP',
+      style: { width: '150px' },
+      render: (row) => <StatusBadge status={row.productStatus} />,
+    },
+    {
+      key: 'items',
+      label: 'Nguyen lieu thanh phan',
       render: (row) => (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-          {(row.items || row.recipe_items || []).map((item, idx) => (
-            <span key={idx} style={{
-              fontSize: '12px',
-              padding: '2px 8px',
-              borderRadius: 'var(--radius-sm)',
-              backgroundColor: 'var(--color-surface-container-low)',
-              color: 'var(--color-on-surface-variant)',
-              border: '1px solid var(--color-outline-variant)'
-            }}>
-              {item.name || item.ingredient?.name}: {item.quantity} {item.unit || item.ingredient?.unit}
+          {row.items.map((item) => (
+            <span
+              key={`${row.id}-${item.ingredientId}`}
+              style={{
+                fontSize: '12px',
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--color-surface-container-low)',
+                color: 'var(--color-on-surface-variant)',
+                border: '1px solid var(--color-outline-variant)',
+              }}
+            >
+              {item.ingredientName}: {item.quantity} {item.unit}
             </span>
           ))}
         </div>
-      )
+      ),
     },
     {
       key: 'actions',
-      label: 'Hành động',
+      label: 'Hanh dong',
       style: { width: '120px', textAlign: 'right' },
       render: (row) => (
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={() => handleEdit(row.id)} title="Chỉnh sửa" style={{ color: 'var(--color-primary)', display: 'flex', padding: 0 }}>
+          <button
+            type="button"
+            onClick={() => navigate(`/admin/recipes/${row.id}/edit`)}
+            title="Chinh sua"
+            style={{ color: 'var(--color-primary)', display: 'flex', padding: 0 }}
+          >
             <Edit size={16} />
           </button>
-          <button type="button" onClick={() => handleDeleteClick(row.id)} title="Xóa" style={{ color: 'var(--color-error)', display: 'flex', padding: 0 }}>
+          <button
+            type="button"
+            onClick={() => setDeleteId(row.id)}
+            title="Xoa"
+            style={{ color: 'var(--color-error)', display: 'flex', padding: 0 }}
+          >
             <Trash2 size={16} />
           </button>
         </div>
-      )
-    }
+      ),
+    },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <PageHeader
-        title="Quản lý công thức"
-        description="Định mức chi tiết thành phần nguyên vật liệu pha chế cho từng sản phẩm đồ uống."
+        title="Quan ly cong thuc"
+        description="Thiet lap dinh muc nguyen lieu cho tung san pham de chuan bi cho POS va tru kho."
         actions={
           <>
-            <Button variant="secondary" onClick={loadRecipes} disabled={isLoading} icon={<RotateCcw size={16} />}>
-              Tải lại
+            <Button
+              variant="secondary"
+              onClick={() => setReloadNonce((current) => current + 1)}
+              disabled={isLoading}
+              icon={<RotateCcw size={16} />}
+            >
+              Tai lai
             </Button>
-            <Button variant="primary" onClick={() => navigate(ROUTES.ADMIN_RECIPES_NEW)} icon={<Plus size={16} />}>
-              Thiết lập công thức
+            <Button
+              variant="primary"
+              onClick={() => navigate(ROUTES.ADMIN_RECIPES_NEW)}
+              icon={<Plus size={16} />}
+            >
+              Them cong thuc
             </Button>
           </>
         }
       />
 
-      {isUsingMock && (
-        <Alert
-          type="info"
-          message="Hệ thống đang hoạt động ở chế độ GIẢ LẬP LOCAL vì backend API công thức pha chế chưa hoàn tất kết nối CSDL."
-        />
-      )}
+      {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
-      {/* Table */}
+      <div className="card" style={{ padding: 'var(--spacing-sm)' }}>
+        <TextInput
+          placeholder="Tim kiem cong thuc theo ten san pham..."
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+        />
+      </div>
+
       <DataTable
         headers={headers}
         data={recipes}
         loading={isLoading}
-        emptyMessage="Chưa có công thức sản phẩm nào được thiết lập."
+        emptyMessage="Khong tim thay cong thuc nao phu hop."
       />
 
       <ConfirmDialog
         isOpen={deleteId !== null}
-        title="Xóa công thức"
-        message="Bạn có chắc muốn xóa công thức pha chế của sản phẩm này? Sản phẩm này sẽ không thể bán tại quầy POS nếu chưa có công thức mới."
-        onConfirm={confirmDelete}
+        title="Xoa cong thuc"
+        message="Ban co chac chan muon xoa cong thuc nay? San pham se khong san sang cho POS cho den khi duoc thiet lap lai."
+        onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
       />
 
@@ -185,4 +203,5 @@ export function RecipeListPage() {
     </div>
   );
 }
+
 export default RecipeListPage;

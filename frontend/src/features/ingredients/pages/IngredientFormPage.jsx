@@ -1,145 +1,130 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Boxes, Save } from 'lucide-react';
 import { ingredientApi } from '../api/ingredientApi.js';
 import { PageHeader } from '../../../components/layout/PageHeader.jsx';
 import { Button } from '../../../components/common/Button.jsx';
+import { Alert } from '../../../components/feedback/Alert.jsx';
+import { Toast } from '../../../components/feedback/Toast.jsx';
 import { TextInput } from '../../../components/forms/TextInput.jsx';
 import { NumberInput } from '../../../components/forms/NumberInput.jsx';
 import { SelectInput } from '../../../components/forms/SelectInput.jsx';
-import { TextareaInput } from '../../../components/forms/TextareaInput.jsx';
-import { Alert } from '../../../components/feedback/Alert.jsx';
-import { Toast } from '../../../components/feedback/Toast.jsx';
-import { validateTextInput, validateNonNegativeNumber } from '../../../utils/validators.js';
 import { ROUTES } from '../../../constants/routes.js';
+import { DEFAULT_INGREDIENT_TAG, INGREDIENT_TAG_SUGGESTIONS } from '../../../constants/ingredientTags.js';
 import { UNITS } from '../../../constants/units.js';
+import { validateDisplayName, validateNonNegativeNumber } from '../../../utils/validators.js';
 
-const MOCK_INGREDIENTS_KEY = 'mini_pos_ingredients';
+const DEFAULT_FORM = {
+  name: '',
+  tag: DEFAULT_INGREDIENT_TAG,
+  unit: UNITS.GRAM,
+  lowStockThreshold: '',
+};
+
+function getTagSuggestions(currentTag) {
+  return Array.from(new Set([...(INGREDIENT_TAG_SUGGESTIONS || []), currentTag || DEFAULT_INGREDIENT_TAG]));
+}
 
 export function IngredientFormPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = Boolean(id);
 
-  const [form, setForm] = useState({ name: '', unit: 'GRAM', current_stock: '0', low_stock_threshold: '0', status: 'ACTIVE', notes: '' });
+  const [form, setForm] = useState(DEFAULT_FORM);
+  const [currentStock, setCurrentStock] = useState(0);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUsingMock, setIsUsingMock] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  const [isLoading, setIsLoading] = useState(isEditMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const tagSuggestions = useMemo(() => getTagSuggestions(form.tag), [form.tag]);
+
   useEffect(() => {
-    const checkApiAndLoad = async () => {
+    if (!isEditMode) {
+      return;
+    }
+
+    const loadIngredient = async () => {
       setIsLoading(true);
+      setSubmitError('');
+
       try {
-        await ingredientApi.getIngredients();
-        setIsUsingMock(false);
-        if (isEditMode) {
-          const res = await ingredientApi.getIngredient(id);
-          setForm({
-            name: res.data.name,
-            unit: res.data.unit,
-            current_stock: String(res.data.current_stock),
-            low_stock_threshold: String(res.data.low_stock_threshold),
-            status: res.data.status,
-            notes: res.data.notes || ''
-          });
-        }
-      } catch (err) {
-        setIsUsingMock(true);
-        const stored = localStorage.getItem(MOCK_INGREDIENTS_KEY);
-        if (stored && isEditMode) {
-          const list = JSON.parse(stored);
-          const found = list.find(item => String(item.id) === String(id));
-          if (found) {
-            setForm({
-              name: found.name,
-              unit: found.unit,
-              current_stock: String(found.current_stock),
-              low_stock_threshold: String(found.low_stock_threshold),
-              status: found.status,
-              notes: found.notes || ''
-            });
-          } else {
-            setSubmitError('Không tìm thấy nguyên liệu cần sửa trong bộ nhớ giả lập.');
-          }
-        }
+        const response = await ingredientApi.getIngredient(id);
+        const ingredient = response.data.ingredient;
+
+        setForm({
+          name: ingredient.name || '',
+          tag: ingredient.tag || DEFAULT_INGREDIENT_TAG,
+          unit: ingredient.unit || UNITS.GRAM,
+          lowStockThreshold:
+            ingredient.lowStockThreshold !== undefined && ingredient.lowStockThreshold !== null
+              ? String(ingredient.lowStockThreshold)
+              : '',
+        });
+        setCurrentStock(Number(ingredient.currentStock || 0));
+      } catch (loadError) {
+        setSubmitError(loadError.message || 'Không tải được thông tin nguyên liệu.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkApiAndLoad();
+    void loadIngredient();
   }, [id, isEditMode]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+
+    setForm((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+      setErrors((prev) => ({ ...prev, [name]: '' }));
     }
     setSubmitError('');
   };
 
-  const handleValidation = () => {
-    const nameErr = validateTextInput(form.name, 'Tên nguyên liệu', 63);
-    const stockErr = validateNonNegativeNumber(form.current_stock, 'Tồn kho hiện tại');
-    const thresholdErr = validateNonNegativeNumber(form.low_stock_threshold, 'Định mức tối thiểu');
+  const validateForm = () => {
+    const nextErrors = {
+      name: validateDisplayName(form.name, 'Tên nguyên liệu', 120),
+      tag: validateDisplayName(form.tag, 'Tag nguyên liệu', 40),
+      lowStockThreshold: validateNonNegativeNumber(form.lowStockThreshold, 'Ngưỡng cảnh báo'),
+    };
 
-    if (nameErr || stockErr || thresholdErr) {
-      setErrors({
-        name: nameErr,
-        current_stock: stockErr,
-        low_stock_threshold: thresholdErr
-      });
-      return false;
-    }
-    return true;
+    setErrors(nextErrors);
+    return !Object.values(nextErrors).some(Boolean);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitError('');
 
-    if (!handleValidation()) return;
+    if (!validateForm()) {
+      return;
+    }
 
     setIsSubmitting(true);
-    const ingredientData = {
+    setSubmitError('');
+
+    const payload = {
       name: form.name.trim(),
+      tag: form.tag.trim(),
       unit: form.unit,
-      current_stock: Number(form.current_stock),
-      low_stock_threshold: Number(form.low_stock_threshold),
-      status: form.status,
-      notes: form.notes.trim()
+      lowStockThreshold: Number(form.lowStockThreshold),
     };
 
     try {
-      if (isUsingMock) {
-        const stored = localStorage.getItem(MOCK_INGREDIENTS_KEY);
-        let list = stored ? JSON.parse(stored) : [];
-        if (isEditMode) {
-          list = list.map(item => String(item.id) === String(id) ? { ...item, ...ingredientData } : item);
-          setToastMsg('Cập nhật nguyên liệu thành công (Giả lập)');
-        } else {
-          const newId = list.length > 0 ? Math.max(...list.map(item => item.id)) + 1 : 1;
-          list.push({ id: newId, ...ingredientData });
-          setToastMsg('Thêm nguyên liệu thành công (Giả lập)');
-        }
-        localStorage.setItem(MOCK_INGREDIENTS_KEY, JSON.stringify(list));
-        setTimeout(() => navigate(ROUTES.ADMIN_INGREDIENTS), 1000);
+      if (isEditMode) {
+        await ingredientApi.updateIngredient(id, payload);
+        setToastMsg('Cập nhật nguyên liệu thành công.');
       } else {
-        if (isEditMode) {
-          await ingredientApi.updateIngredient(id, ingredientData);
-          setToastMsg('Cập nhật nguyên liệu thành công');
-        } else {
-          await ingredientApi.createIngredient(ingredientData);
-          setToastMsg('Thêm nguyên liệu thành công');
-        }
-        setTimeout(() => navigate(ROUTES.ADMIN_INGREDIENTS), 1000);
+        await ingredientApi.createIngredient(payload);
+        setToastMsg('Tạo nguyên liệu thành công.');
       }
-    } catch (err) {
-      setSubmitError(err.message || 'Lưu thông tin nguyên liệu thất bại.');
+
+      setTimeout(() => {
+        navigate(ROUTES.ADMIN_INGREDIENTS);
+      }, 900);
+    } catch (saveError) {
+      setSubmitError(saveError.message || 'Lưu thông tin nguyên liệu thất bại.');
     } finally {
       setIsSubmitting(false);
     }
@@ -148,8 +133,12 @@ export function IngredientFormPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <PageHeader
-        title={isEditMode ? 'Chỉnh sửa nguyên liệu' : 'Thêm nguyên liệu mới'}
-        description={isEditMode ? 'Cập nhật lại thông tin định lượng nguyên liệu.' : 'Đăng ký nguyên vật liệu pha chế mới.'}
+        title={isEditMode ? 'Chỉnh sửa nguyên liệu' : 'Tạo nguyên liệu mới'}
+        description={
+          isEditMode
+            ? 'Cập nhật tên, tag, đơn vị và ngưỡng cảnh báo tồn kho của nguyên liệu.'
+            : 'Tạo mới nguyên liệu để chuẩn bị cho công thức, kho và bộ lọc theo tag.'
+        }
         actions={
           <Button variant="secondary" onClick={() => navigate(ROUTES.ADMIN_INGREDIENTS)} icon={<ArrowLeft size={16} />}>
             Quay lại danh sách
@@ -157,107 +146,123 @@ export function IngredientFormPage() {
         }
       />
 
-      {isUsingMock && (
-        <Alert
-          type="info"
-          message="Hệ thống đang hoạt động ở chế độ GIẢ LẬP LOCAL vì backend API nguyên liệu chưa hoàn tất kết nối CSDL."
-        />
-      )}
-
       {submitError && <Alert type="error" message={submitError} onClose={() => setSubmitError('')} />}
 
-      <div className="card" style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-        {isLoading ? (
-          <div style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>
-            <div className="spinner" style={{ margin: '0 auto 12px' }}></div>
-            <p style={{ color: 'var(--color-secondary)', margin: 0 }}>Đang tải thông tin nguyên liệu...</p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <TextInput
-              label="Tên nguyên liệu"
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-              error={errors.name}
-              placeholder="Ví dụ: Hat ca phe Robusta, Sua dac Ong Tho..."
-              maxLength={63}
-              required
-              disabled={isSubmitting}
-            />
-
-            <SelectInput
-              label="Đơn vị tính"
-              name="unit"
-              value={form.unit}
-              onChange={handleChange}
-              options={[
-                { value: UNITS.GRAM, label: 'Gram (g)' },
-                { value: UNITS.ML, label: 'Mililít (ml)' },
-                { value: UNITS.PIECE, label: 'Cái / Quả (Chai, Hộp...)' }
-              ]}
-              disabled={isSubmitting}
-            />
-
-            <NumberInput
-              label="Số lượng tồn kho hiện tại"
-              name="current_stock"
-              value={form.current_stock}
-              onChange={handleChange}
-              error={errors.current_stock}
-              placeholder="Nhập số lượng thực tế hiện có"
-              required
-              disabled={isSubmitting}
-            />
-
-            <NumberInput
-              label="Định mức tồn kho tối thiểu"
-              name="low_stock_threshold"
-              value={form.low_stock_threshold}
-              onChange={handleChange}
-              error={errors.low_stock_threshold}
-              placeholder="Nhập ngưỡng để kích hoạt cảnh báo sắp hết hàng"
-              required
-              disabled={isSubmitting}
-            />
-
-            <SelectInput
-              label="Trạng thái"
-              name="status"
-              value={form.status}
-              onChange={handleChange}
-              options={[
-                { value: 'ACTIVE', label: 'Đang áp dụng' },
-                { value: 'INACTIVE', label: 'Ngưng sử dụng' }
-              ]}
-              disabled={isSubmitting}
-            />
-
-            <TextareaInput
-              label="Ghi chú thêm"
-              name="notes"
-              value={form.notes}
-              onChange={handleChange}
-              error={errors.notes}
-              placeholder="Nhập nhà cung cấp hoặc lưu ý pha chế..."
-              maxLength={255}
-              disabled={isSubmitting}
-            />
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.ADMIN_INGREDIENTS)} disabled={isSubmitting}>
-                Hủy bỏ
-              </Button>
-              <Button type="submit" variant="primary" loading={isSubmitting} icon={<Save size={16} />}>
-                Lưu lại
-              </Button>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(260px, 1fr)', gap: 'var(--spacing-lg)' }}>
+        <div className="card">
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>
+              <div className="spinner" style={{ margin: '0 auto 12px' }}></div>
+              <p style={{ color: 'var(--color-secondary)', margin: 0 }}>Đang tải thông tin nguyên liệu...</p>
             </div>
-          </form>
-        )}
+          ) : (
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <TextInput
+                label="Tên nguyên liệu"
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                error={errors.name}
+                placeholder="Ví dụ: Hạt cà phê Robusta"
+                maxLength={120}
+                required
+                disabled={isSubmitting}
+              />
+
+              <TextInput
+                label="Tag / nhóm nguyên liệu"
+                name="tag"
+                value={form.tag}
+                onChange={handleChange}
+                error={errors.tag}
+                placeholder="Ví dụ: Syrup"
+                maxLength={40}
+                list="ingredient-tag-suggestions"
+                required
+                disabled={isSubmitting}
+              />
+              <datalist id="ingredient-tag-suggestions">
+                {tagSuggestions.map((tag) => (
+                  <option key={tag} value={tag} />
+                ))}
+              </datalist>
+
+              <SelectInput
+                label="Đơn vị tính"
+                name="unit"
+                value={form.unit}
+                onChange={handleChange}
+                options={[
+                  { value: UNITS.GRAM, label: 'Gram (g)' },
+                  { value: UNITS.ML, label: 'Mililit (ml)' },
+                  { value: UNITS.PIECE, label: 'Cái / Chai / Hộp' },
+                ]}
+                disabled={isSubmitting}
+              />
+
+              <NumberInput
+                label="Ngưỡng cảnh báo tồn kho"
+                name="lowStockThreshold"
+                value={form.lowStockThreshold}
+                onChange={handleChange}
+                error={errors.lowStockThreshold}
+                placeholder="Ví dụ: 500"
+                required
+                disabled={isSubmitting}
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
+                <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.ADMIN_INGREDIENTS)} disabled={isSubmitting}>
+                  Hủy bỏ
+                </Button>
+                <Button type="submit" variant="primary" loading={isSubmitting} icon={<Save size={16} />}>
+                  {isEditMode ? 'Lưu thay đổi' : 'Tạo nguyên liệu'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
+
+        <div className="card">
+          <h3 style={{ marginTop: 0, color: 'var(--color-primary)' }}>Ghi chú</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '14px' }}>
+            <div>
+              <strong>Tag:</strong> Dùng để gom nhóm và lọc nhanh theo loại như <code>Bột cà phê</code>, <code>Syrup</code>, <code>Ly / bao bì</code>.
+            </div>
+            {isEditMode ? (
+              <>
+                <div>
+                  <strong>Tồn kho hiện tại:</strong> {currentStock} {form.unit}
+                </div>
+                <div>
+                  <strong>Lưu ý:</strong> Số lượng tồn kho không chỉnh trực tiếp tại đây.
+                </div>
+                <div>
+                  <strong>Khuyến nghị:</strong> Dùng màn giao dịch kho để nhập thêm hoặc điều chỉnh hao hụt.
+                </div>
+                <div style={{ marginTop: '8px' }}>
+                  <Button variant="secondary" onClick={() => navigate(ROUTES.ADMIN_STOCK)} icon={<Boxes size={16} />}>
+                    Mở màn giao dịch kho
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <strong>Tồn kho ban đầu:</strong> Sau khi tạo nguyên liệu, hãy dùng màn giao dịch kho để nhập số lượng thực tế.
+                </div>
+                <div>
+                  <strong>Ngưỡng cảnh báo:</strong> Khi tồn kho nhỏ hơn hoặc bằng ngưỡng này, hệ thống sẽ đánh dấu sắp hết hàng.
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       <Toast message={toastMsg} type="success" onClose={() => setToastMsg('')} />
     </div>
   );
 }
+
 export default IngredientFormPage;

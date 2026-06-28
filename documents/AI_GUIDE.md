@@ -48,6 +48,8 @@ In scope:
 - Login and Authorization
 - Admin Dashboard
 - Staff Dashboard / POS Dashboard
+- User Management (internal accounts only)
+- Profile Management
 - Product Management
 - Ingredient Management
 - Stock Import / Stock Adjustment
@@ -67,9 +69,17 @@ Out of scope:
 - AI prediction
 - Supabase Auth
 - Direct frontend database access
+- Public self-registration
+- Invite code / join business / owner onboarding flow
 - Complex business workspace or onboarding database flow
 
 If a UI reference screen contains extra flows, keep them as reference only. Do not create backend/database features for them unless requested.
+
+Temporary scope extension approved:
+
+- Internal user management is now in scope.
+- Profile management is now in scope.
+- Do not expand this into workspace, business invite, or owner registration features.
 
 ---
 
@@ -123,6 +133,13 @@ Always follow these rules:
 18. Every successful stock deduction must create a `stock_transactions` record.
 19. Order History only shows successful orders.
 20. Reports only count successful orders.
+21. Only Admin can access User Management screens and User Management APIs.
+22. Admin can create internal accounts for Admin or Staff.
+23. Admin can update user role, active status, and reset password.
+24. Every authenticated user can view and update their own profile.
+25. Every authenticated user can change their own password.
+26. Inactive users must not login and should not keep using protected APIs.
+27. V1 user management should stay simple and use the existing `app_users` table only.
 
 ---
 
@@ -141,6 +158,14 @@ Login input:
 ```txt
 username
 password
+```
+
+Supported account flows:
+
+```txt
+Admin creates internal accounts from User Management.
+No public register page is required in V1.
+No invite code or workspace join flow is required in V1.
 ```
 
 Backend login flow:
@@ -164,6 +189,14 @@ role
 ```
 
 Never return `password_hash` to frontend.
+
+Profile and password rules:
+
+```txt
+- Admin can reset another user's password from User Management.
+- Users can change their own password from Profile.
+- Password reset and password change must always re-hash the new password with bcrypt.
+```
 
 ---
 
@@ -255,6 +288,24 @@ Suggested files:
 database/supabase_schema_v1.sql
 database/supabase_seed_v1.sql
 database/supabase_recipe_seed_from_old_project_v1.sql
+```
+
+User Management V1 should reuse `app_users`.
+
+Expected user fields:
+
+```txt
+id
+username
+email
+full_name
+password_hash
+role
+status
+last_login_at
+created_at
+updated_at
+deleted_at
 ```
 
 Do not create hidden database triggers for order deduction.
@@ -433,6 +484,12 @@ Product is inactive.
 Product has no recipe.
 Insufficient stock for Milk.
 Order failed. Stock was not deducted.
+Username already exists.
+Email already exists.
+You cannot deactivate your own account.
+You cannot remove the last active admin.
+Current password is incorrect.
+Password has been reset successfully.
 ```
 
 Do not return only `Internal Server Error` for expected validation or business errors.
@@ -449,6 +506,11 @@ Staff login success
 Wrong password
 Inactive user
 Staff cannot access Admin pages
+Admin creates user successfully
+Admin updates role or status successfully
+Admin resets password successfully
+User updates own profile successfully
+User changes own password successfully
 Product active/inactive
 Product with recipe
 Product without recipe

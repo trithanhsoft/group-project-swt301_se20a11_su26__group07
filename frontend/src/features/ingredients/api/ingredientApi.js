@@ -1,8 +1,27 @@
 import { apiClient } from '../../../services/apiClient.js';
 
+function buildQueryString(filters = {}) {
+  const query = new URLSearchParams();
+
+  if (filters.search) {
+    query.set('search', filters.search);
+  }
+
+  if (filters.lowStock) {
+    query.set('lowStock', 'true');
+  }
+
+  if (filters.tag && filters.tag !== 'ALL') {
+    query.set('tag', filters.tag);
+  }
+
+  const queryString = query.toString();
+  return queryString ? `?${queryString}` : '';
+}
+
 export const ingredientApi = {
-  getIngredients() {
-    return apiClient.get('/ingredients');
+  getIngredients(filters = {}) {
+    return apiClient.get(`/ingredients${buildQueryString(filters)}`);
   },
   getIngredient(id) {
     return apiClient.get(`/ingredients/${id}`);
@@ -15,6 +34,7 @@ export const ingredientApi = {
   },
   deleteIngredient(id) {
     return apiClient.delete(`/ingredients/${id}`);
-  }
+  },
 };
+
 export default ingredientApi;

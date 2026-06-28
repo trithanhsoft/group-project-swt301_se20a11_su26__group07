@@ -1,105 +1,163 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, RotateCcw } from 'lucide-react';
 import { orderApi } from '../api/orderApi.js';
 import { PageHeader } from '../../../components/layout/PageHeader.jsx';
 import { Button } from '../../../components/common/Button.jsx';
 import { DataTable } from '../../../components/common/DataTable.jsx';
+import { StatusBadge } from '../../../components/common/StatusBadge.jsx';
 import { Alert } from '../../../components/feedback/Alert.jsx';
 import { formatVND } from '../../../utils/currency.js';
 import { formatDateTime } from '../../../utils/date.js';
 
-const MOCK_ORDERS_KEY = 'mini_pos_orders';
-const DEFAULT_MOCK_ORDERS = [
-  { id: 1, order_code: 'OD582910', total_amount: 54000, status: 'SUCCESS', created_by: 'staff', created_at: '2026-06-19T09:30:00Z', items: [{ product_name: 'Espresso', price: 25000, quantity: 1 }, { product_name: 'Ca phe sua da', price: 29000, quantity: 1 }] },
-  { id: 2, order_code: 'OD910243', total_amount: 64000, status: 'SUCCESS', created_by: 'staff', created_at: '2026-06-19T10:15:00Z', items: [{ product_name: 'Bac siu', price: 32000, quantity: 2 }] },
-];
+function getPaymentMethodLabel(paymentMethod) {
+  if (paymentMethod === 'CASH') {
+    return 'Tien mat';
+  }
+
+  return paymentMethod || '--';
+}
+
+function getKdsStatusLabel(kdsStatus) {
+  return kdsStatus === 'COMPLETED' ? 'Da hoan thanh' : 'Don moi';
+}
+
+function getKdsStatusVariant(kdsStatus) {
+  return kdsStatus === 'COMPLETED' ? 'SUCCESS' : 'WARNING';
+}
 
 export function OrderHistoryPage() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isUsingMock, setIsUsingMock] = useState(false);
-
-  const loadOrders = async () => {
-    setIsLoading(true);
-    try {
-      const res = await orderApi.getOrders();
-      setOrders(res.data || []);
-      setIsUsingMock(false);
-    } catch (err) {
-      const stored = localStorage.getItem(MOCK_ORDERS_KEY);
-      if (stored) {
-        setOrders(JSON.parse(stored));
-      } else {
-        setOrders(DEFAULT_MOCK_ORDERS);
-        localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(DEFAULT_MOCK_ORDERS));
-      }
-      setIsUsingMock(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [error, setError] = useState('');
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
-    loadOrders();
-  }, []);
+    let isCancelled = false;
 
-  const handleViewDetail = (id) => {
-    navigate(`/staff/orders/${id}`);
-  };
+    const loadOrders = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const response = await orderApi.getOrders();
+
+        if (!isCancelled) {
+          setOrders(response.data.orders || []);
+        }
+      } catch (loadError) {
+        if (!isCancelled) {
+          setOrders([]);
+          setError(loadError.message || 'Khong tai duoc lich su don hang.');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadOrders();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [reloadNonce]);
 
   const headers = [
-    { key: 'order_code', label: 'Mã đơn hàng', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>#{row.order_code}</strong> },
-    { key: 'created_by', label: 'Nhân viên bán hàng', render: (row) => row.created_by || row.user?.username || 'Staff' },
-    { key: 'total_amount', label: 'Tổng thanh toán', render: (row) => formatVND(row.total_amount) },
-    { key: 'created_at', label: 'Ngày bán', render: (row) => formatDateTime(row.created_at) },
+    {
+      key: 'orderCode',
+      label: 'Ma don hang',
+      render: (row) => <strong style={{ color: 'var(--color-primary)' }}>#{row.orderCode}</strong>,
+    },
+    {
+      key: 'staffUsername',
+      label: 'Nhan vien ban hang',
+      render: (row) => row.staffUsername || 'Staff',
+    },
+    {
+      key: 'totalAmount',
+      label: 'Tong thanh toan',
+      render: (row) => formatVND(row.totalAmount),
+    },
+    {
+      key: 'paymentMethod',
+      label: 'Thanh toan',
+      render: (row) => getPaymentMethodLabel(row.paymentMethod),
+    },
+    {
+      key: 'amountReceived',
+      label: 'Khach dua',
+      render: (row) => (row.amountReceived === null ? '--' : formatVND(row.amountReceived)),
+    },
+    {
+      key: 'changeAmount',
+      label: 'Tien thoi',
+      render: (row) => (row.changeAmount === null ? '--' : formatVND(row.changeAmount)),
+    },
+    {
+      key: 'kdsStatus',
+      label: 'KDS',
+      render: (row) => (
+        <StatusBadge
+          status={getKdsStatusVariant(row.kdsStatus)}
+          customLabel={getKdsStatusLabel(row.kdsStatus)}
+        />
+      ),
+    },
+    {
+      key: 'createdAt',
+      label: 'Ngay ban',
+      render: (row) => formatDateTime(row.createdAt),
+    },
     {
       key: 'actions',
-      label: 'Chi tiết',
+      label: 'Chi tiet',
       style: { width: '80px', textAlign: 'right' },
       render: (row) => (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button
             type="button"
-            onClick={() => handleViewDetail(row.id)}
-            title="Xem chi tiết đơn hàng"
+            onClick={() => navigate(`/staff/orders/${row.id}`)}
+            title="Xem chi tiet don hang"
             style={{ color: 'var(--color-primary)', display: 'flex', padding: 0 }}
           >
             <Eye size={18} />
           </button>
         </div>
-      )
-    }
+      ),
+    },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <PageHeader
-        title="Lịch sử đơn hàng"
-        description="Tra cứu và xem chi tiết các đơn hàng bán ra tại quầy."
+        title="Lich su don hang"
+        description="Tra cuu cac don hang thanh cong cua nhan vien hien tai."
         actions={
-          <Button variant="secondary" onClick={loadOrders} disabled={isLoading} icon={<RotateCcw size={16} />}>
-            Tải lại
+          <Button
+            variant="secondary"
+            onClick={() => setReloadNonce((current) => current + 1)}
+            disabled={isLoading}
+            icon={<RotateCcw size={16} />}
+          >
+            Tai lai
           </Button>
         }
       />
 
-      {isUsingMock && (
-        <Alert
-          type="info"
-          message="Hệ thống đang hoạt động ở chế độ GIẢ LẬP LOCAL vì backend API đơn hàng chưa hoàn tất kết nối CSDL."
-        />
-      )}
+      {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
-      {/* Orders Table */}
       <DataTable
         headers={headers}
-        data={[...orders].reverse()}
+        data={orders}
         loading={isLoading}
-        emptyMessage="Chưa có đơn hàng nào được thực hiện thành công."
+        emptyMessage="Chua co don hang thanh cong nao."
+        style={{ minWidth: '1120px' }}
       />
     </div>
   );
 }
+
 export default OrderHistoryPage;

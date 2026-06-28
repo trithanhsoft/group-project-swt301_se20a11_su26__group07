@@ -104,7 +104,7 @@ export function AdminDashboardPage() {
             <h3 style={{ fontSize: '15px', fontWeight: '600', color: 'var(--color-primary)', margin: 0, marginBottom: '16px' }}>
               Thao tác nhanh
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div className="dashboard-quick-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
               <button
                 type="button"
                 onClick={() => handleQuickAction(ROUTES.ADMIN_PRODUCTS_NEW)}

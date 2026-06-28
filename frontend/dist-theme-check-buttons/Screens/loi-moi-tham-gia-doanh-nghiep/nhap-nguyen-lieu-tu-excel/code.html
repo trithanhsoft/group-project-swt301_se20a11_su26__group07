@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Import Nguyên Liệu - BeanLogic Admin</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-container": "#6f4e37",
+                      "on-secondary-fixed": "#191c1e",
+                      "on-surface-variant": "#50453e",
+                      "tertiary-fixed": "#6ffbbe",
+                      "on-tertiary-fixed-variant": "#005236",
+                      "secondary-fixed": "#e1e2e4",
+                      "on-tertiary-container": "#53e3a7",
+                      "on-secondary-container": "#606365",
+                      "primary-fixed-dim": "#eabda0",
+                      "tertiary": "#00482f",
+                      "error-container": "#ffdad6",
+                      "on-secondary-fixed-variant": "#444749",
+                      "surface": "#fff8f5",
+                      "on-error": "#ffffff",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-low": "#fbf2ee",
+                      "surface-dim": "#e1d8d5",
+                      "on-background": "#1e1b19",
+                      "inverse-surface": "#34302d",
+                      "surface-container-highest": "#e9e1dd",
+                      "on-primary": "#ffffff",
+                      "tertiary-fixed-dim": "#4edea3",
+                      "on-primary-fixed": "#2d1604",
+                      "surface-bright": "#fff8f5",
+                      "primary-fixed": "#ffdcc6",
+                      "outline": "#82746d",
+                      "tertiary-container": "#006242",
+                      "on-primary-fixed-variant": "#5f402a",
+                      "primary": "#553722",
+                      "on-surface": "#1e1b19",
+                      "on-secondary": "#ffffff",
+                      "secondary-container": "#dee0e2",
+                      "surface-variant": "#e9e1dd",
+                      "background": "#fff8f5",
+                      "surface-container": "#f5ece8",
+                      "inverse-on-surface": "#f8efeb",
+                      "on-primary-container": "#eec1a4",
+                      "error": "#ba1a1a",
+                      "surface-container-lowest": "#ffffff",
+                      "inverse-primary": "#eabda0",
+                      "outline-variant": "#d4c3ba",
+                      "on-tertiary-fixed": "#002113",
+                      "secondary": "#5c5f60",
+                      "surface-tint": "#79573f",
+                      "secondary-fixed-dim": "#c5c6c8",
+                      "on-error-container": "#93000a",
+                      "surface-container-high": "#efe6e3"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xs": "4px",
+                      "sidebar-width": "260px",
+                      "margin": "32px",
+                      "md": "16px",
+                      "xl": "32px",
+                      "container-max": "1440px",
+                      "gutter": "24px",
+                      "sm": "8px",
+                      "base": "4px",
+                      "lg": "24px"
+              },
+              "fontFamily": {
+                      "label-md": ["Inter"],
+                      "label-sm": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "title-md": ["Inter"],
+                      "body-md": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "display-lg": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "title-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "500" }],
+                      "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                      "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                      "title-md": ["16px", { "lineHeight": "24px", "fontWeight": "600" }],
+                      "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                      "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                      "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                      "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                      "title-lg": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+              }
+            }
+          }
+        }
+      </script>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen">
+<!-- Desktop Layout -->
+<div class="hidden md:flex min-h-screen w-full max-w-[1440px] mx-auto relative">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-screen w-[260px] flex flex-col p-4 bg-surface-container-low border-r border-outline-variant z-20">
+<!-- Header -->
+<div class="mb-8 px-2 flex items-center gap-4">
+<img alt="Admin User Profile" class="w-10 h-10 rounded-full shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwZmCyYbyDxEfvHG4TtblBPZRSMf479FcQbJZyV0RUIj7B9GSt6oiXni8a3TLk7AdVPd6d-KJCSrzGTHKzMjOsEKd4gJbvTbUzjCQUtuwlqQ86A4KK9cTWS4YUmAfdiGqYCvCjWsgJ9n4QnloPx1_rP5Wj-NDDYLcWSLF6Y9EydGYyhPhtjp8iOt9jQMhkE5gvLrMvpxgP-IWMg1X92ovSqmWLqtQgoPRPWmj1isHMexaQzsXaWKyMgOGAQZwUgNFUeAZCi_rzmLgC"/>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">BeanLogic Admin</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Downtown Branch</p>
+</div>
+</div>
+<!-- Navigation Links -->
+<div class="flex-1 overflow-y-auto space-y-1">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+<!-- Active Item -->
+<a class="flex items-center gap-3 bg-primary-container text-on-primary-container rounded-lg px-4 py-3 scale-[0.98] transition-transform shadow-sm" href="#">
+<span class="material-symbols-outlined" data-icon="eco" data-weight="fill" style="font-variation-settings: 'FILL' 1;">eco</span>
+<span class="font-label-md text-label-md font-bold">Ingredients</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="package_2">package_2</span>
+<span class="font-label-md text-label-md">Stock</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="menu_book">menu_book</span>
+<span class="font-label-md text-label-md">Recipes</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Staff</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</div>
+<!-- Footer -->
+<div class="mt-auto pt-4 border-t border-outline-variant">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label-md text-label-md">Logout</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="ml-[260px] flex-1 p-margin flex flex-col gap-gutter">
+<!-- Page Header -->
+<header class="flex justify-between items-center bg-surface p-6 rounded-xl border border-outline-variant shadow-sm">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Nhập Nguyên Liệu Từ Excel</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Tải lên file dữ liệu để cập nhật danh sách nguyên liệu hàng loạt.</p>
+</div>
+<div class="flex gap-4">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface text-on-surface border border-outline rounded-lg hover:bg-surface-container transition-colors font-title-md text-title-md shadow-sm">
+<span class="material-symbols-outlined" data-icon="download">download</span>
+                        Tải File Mẫu
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary-container text-on-primary-container rounded-lg hover:opacity-90 transition-opacity font-title-md text-title-md shadow-sm">
+<span class="material-symbols-outlined" data-icon="check_circle">check_circle</span>
+                        Xác Nhận Nhập
+                    </button>
+</div>
+</header>
+<div class="grid grid-cols-12 gap-gutter flex-1">
+<!-- Upload Section (Left Column) -->
+<div class="col-span-4 flex flex-col gap-gutter">
+<!-- Upload Box -->
+<div class="bg-surface border-2 border-dashed border-outline-variant rounded-xl p-8 flex flex-col items-center justify-center text-center hover:border-primary transition-colors cursor-pointer min-h-[300px]">
+<div class="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mb-4 text-primary">
+<span class="material-symbols-outlined text-4xl" data-icon="upload_file">upload_file</span>
+</div>
+<h3 class="font-title-lg text-title-lg text-on-surface mb-2">Kéo thả file vào đây</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">hoặc click để chọn file từ máy tính (.xlsx, .xls)</p>
+<button class="px-6 py-2 bg-surface border border-outline text-on-surface rounded-lg font-title-md text-title-md hover:bg-surface-container transition-colors">
+                            Chọn File
+                        </button>
+</div>
+<!-- File Info Card (Simulating uploaded state) -->
+<div class="bg-surface border border-outline-variant rounded-xl p-4 shadow-sm flex items-start gap-4">
+<div class="text-primary bg-primary-fixed p-2 rounded-lg">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+</div>
+<div class="flex-1">
+<p class="font-title-md text-title-md text-on-surface truncate">danh_sach_nguyen_lieu_t9.xlsx</p>
+<p class="font-label-md text-label-md text-on-surface-variant">24.5 KB • 120 Dòng dữ liệu</p>
+<!-- Validation Summary -->
+<div class="mt-3 flex gap-2">
+<span class="inline-flex items-center gap-1 bg-surface-container-high text-on-surface-variant px-2 py-1 rounded-md font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px] text-tertiary" data-icon="check_circle">check_circle</span>
+                                    115 Hợp lệ
+                                </span>
+<span class="inline-flex items-center gap-1 bg-error-container text-on-error-container px-2 py-1 rounded-md font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]" data-icon="error">error</span>
+                                    5 Lỗi
+                                </span>
+</div>
+</div>
+<button class="text-on-surface-variant hover:text-error transition-colors p-1 rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+</div>
+<!-- Preview Table Section (Right Column) -->
+<div class="col-span-8 bg-surface border border-outline-variant rounded-xl shadow-sm overflow-hidden flex flex-col">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+<h3 class="font-title-lg text-title-lg text-on-surface">Bản Xem Trước Dữ Liệu</h3>
+<button class="text-primary font-label-md text-label-md hover:underline">Lọc hiển thị lỗi</button>
+</div>
+<div class="overflow-x-auto flex-1">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-low font-title-md text-title-md text-on-surface border-b border-outline-variant">
+<tr>
+<th class="p-4 whitespace-nowrap w-16 text-center">Dòng</th>
+<th class="p-4 whitespace-nowrap min-w-[200px]">Tên Nguyên Liệu</th>
+<th class="p-4 whitespace-nowrap w-24">Đơn Vị</th>
+<th class="p-4 whitespace-nowrap w-32 text-right">Tồn Kho</th>
+<th class="p-4 whitespace-nowrap w-32 text-right">Ngưỡng</th>
+<th class="p-4 whitespace-nowrap min-w-[180px]">Trạng Thái</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md divide-y divide-surface-variant">
+<!-- Valid Row -->
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="p-4 text-center text-on-surface-variant">2</td>
+<td class="p-4 text-on-surface font-medium">Cà phê hạt Robusta Đắk Lắk</td>
+<td class="p-4 text-on-surface-variant">Kg</td>
+<td class="p-4 text-right text-on-surface">50.5</td>
+<td class="p-4 text-right text-on-surface-variant">10.0</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1 text-tertiary font-label-md text-label-md bg-tertiary-fixed px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[16px]" data-icon="check">check</span>
+                                            Hợp lệ
+                                        </span>
+</td>
+</tr>
+<!-- Valid Row -->
+<tr class="hover:bg-surface-container-lowest transition-colors bg-surface-container-lowest">
+<td class="p-4 text-center text-on-surface-variant">3</td>
+<td class="p-4 text-on-surface font-medium">Sữa tươi thanh trùng TH</td>
+<td class="p-4 text-on-surface-variant">Hộp 1L</td>
+<td class="p-4 text-right text-on-surface">120</td>
+<td class="p-4 text-right text-on-surface-variant">20</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1 text-tertiary font-label-md text-label-md bg-tertiary-fixed px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[16px]" data-icon="check">check</span>
+                                            Hợp lệ
+                                        </span>
+</td>
+</tr>
+<!-- Error Row: Negative Stock -->
+<tr class="hover:bg-surface-container-lowest transition-colors bg-error-container/20">
+<td class="p-4 text-center text-on-surface-variant">4</td>
+<td class="p-4 text-on-surface font-medium">Đường phèn biên hòa</td>
+<td class="p-4 text-on-surface-variant">Kg</td>
+<td class="p-4 text-right text-error font-bold">-5</td>
+<td class="p-4 text-right text-on-surface-variant">15</td>
+<td class="p-4">
+<div class="flex items-start gap-1 text-error font-label-md text-label-md bg-error-container px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[16px] mt-[2px]" data-icon="warning">warning</span>
+<span>Tồn kho không được âm</span>
+</div>
+</td>
+</tr>
+<!-- Error Row: Missing Name -->
+<tr class="hover:bg-surface-container-lowest transition-colors bg-error-container/20">
+<td class="p-4 text-center text-on-surface-variant">5</td>
+<td class="p-4 text-error italic bg-error-container/50 border border-error/20 rounded">-- Trống --</td>
+<td class="p-4 text-on-surface-variant">Chai</td>
+<td class="p-4 text-right text-on-surface">12</td>
+<td class="p-4 text-right text-on-surface-variant">5</td>
+<td class="p-4">
+<div class="flex items-start gap-1 text-error font-label-md text-label-md bg-error-container px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[16px] mt-[2px]" data-icon="warning">warning</span>
+<span>Thiếu Tên nguyên liệu</span>
+</div>
+</td>
+</tr>
+<!-- Valid Row -->
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="p-4 text-center text-on-surface-variant">6</td>
+<td class="p-4 text-on-surface font-medium">Trà Oolong Mộc Châu</td>
+<td class="p-4 text-on-surface-variant">Gói 500g</td>
+<td class="p-4 text-right text-on-surface">30</td>
+<td class="p-4 text-right text-on-surface-variant">5</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1 text-tertiary font-label-md text-label-md bg-tertiary-fixed px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[16px]" data-icon="check">check</span>
+                                            Hợp lệ
+                                        </span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Table Footer Actions -->
+<div class="p-4 border-t border-outline-variant bg-surface flex justify-between items-center">
+<p class="font-label-md text-label-md text-on-surface-variant">Hiển thị dòng 2-6 / 120</p>
+<div class="flex gap-2">
+<button class="px-4 py-2 text-on-surface-variant hover:bg-surface-container rounded-lg font-title-md text-title-md transition-colors">
+                                Hủy Bỏ
+                            </button>
+<button class="px-4 py-2 bg-primary text-on-primary rounded-lg opacity-50 cursor-not-allowed font-title-md text-title-md shadow-sm" disabled="">
+                                Vui lòng sửa lỗi trước khi Nhập
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Mobile Placeholder (Design System specifies POS/Admin is primarily desktop/tablet, keeping mobile minimal if needed) -->
+<div class="md:hidden flex flex-col items-center justify-center min-h-screen p-6 text-center bg-surface">
+<span class="material-symbols-outlined text-6xl text-primary mb-4" data-icon="desktop_windows">desktop_windows</span>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-2">Yêu cầu màn hình lớn</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Chức năng quản trị hệ thống yêu cầu màn hình máy tính hoặc máy tính bảng để hiển thị đầy đủ.</p>
+</div>
+</body></html>

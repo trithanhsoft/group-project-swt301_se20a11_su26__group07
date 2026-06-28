@@ -2,26 +2,32 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiClient, clearAuthToken, setAuthToken } from '../../services/apiClient.js';
 
 const AuthContext = createContext(null);
+const initialAccessToken = localStorage.getItem('accessToken');
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(Boolean(initialAccessToken));
+
+  const refreshUser = async () => {
+    const response = await apiClient.get('/auth/me');
+    setUser(response.data.user);
+    return response.data.user;
+  };
+
+  const setCurrentUser = (nextUser) => {
+    setUser(nextUser);
+  };
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    const token = initialAccessToken;
 
     if (!token) {
-      setIsBootstrapping(false);
       return;
     }
 
     setAuthToken(token);
 
-    apiClient
-      .get('/auth/me')
-      .then((response) => {
-        setUser(response.data.user);
-      })
+    refreshUser()
       .catch(() => {
         clearAuthToken();
         setUser(null);
@@ -53,6 +59,8 @@ export function AuthProvider({ children }) {
       isBootstrapping,
       login,
       logout,
+      refreshUser,
+      setCurrentUser,
     }),
     [user, isBootstrapping],
   );

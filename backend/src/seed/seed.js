@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { pool, query } from '../config/db.js';
+import { resolveIngredientTag, resolveProductTag } from '../utils/tagTaxonomy.js';
 
 dotenv.config();
 
@@ -68,36 +69,52 @@ async function upsertUser(user) {
 }
 
 async function upsertIngredient(ingredient, createdBy) {
+  const tag = resolveIngredientTag(ingredient.tag, ingredient.name);
   const result = await query(
-    `insert into ingredients (name, unit, current_stock, low_stock_threshold, created_by)
-     values ($1, $2, $3, $4, $5)
+    `insert into ingredients (name, tag, unit, current_stock, low_stock_threshold, created_by)
+     values ($1, $2, $3, $4, $5, $6)
      on conflict ((lower(name)), unit)
      where deleted_at is null
      do update set
+       tag = case
+         when ingredients.tag is null
+           or btrim(ingredients.tag) = ''
+           or ingredients.tag = 'Khác'
+         then excluded.tag
+         else ingredients.tag
+       end,
        current_stock = excluded.current_stock,
        low_stock_threshold = excluded.low_stock_threshold,
        created_by = excluded.created_by,
        updated_at = now()
      returning id, name`,
-    [ingredient.name, ingredient.unit, ingredient.currentStock, ingredient.lowStockThreshold, createdBy],
+    [ingredient.name, tag, ingredient.unit, ingredient.currentStock, ingredient.lowStockThreshold, createdBy],
   );
 
   return result.rows[0];
 }
 
 async function upsertProduct(product, createdBy) {
+  const tag = resolveProductTag(product.tag, product.name);
   const result = await query(
-    `insert into products (name, price, status, created_by)
-     values ($1, $2, $3, $4)
+    `insert into products (name, tag, price, status, created_by)
+     values ($1, $2, $3, $4, $5)
      on conflict ((lower(name)))
      where deleted_at is null
      do update set
+       tag = case
+         when products.tag is null
+           or btrim(products.tag) = ''
+           or products.tag = 'Khác'
+         then excluded.tag
+         else products.tag
+       end,
        price = excluded.price,
        status = excluded.status,
        created_by = excluded.created_by,
        updated_at = now()
      returning id, name`,
-    [product.name, product.price, product.status, createdBy],
+    [product.name, tag, product.price, product.status, createdBy],
   );
 
   return result.rows[0];

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from '../providers/AuthProvider.jsx';
 import { ProtectedRoute } from './ProtectedRoute.jsx';
@@ -6,6 +5,9 @@ import { AppLayout } from '../../components/layout/AppLayout.jsx';
 
 import { LoginPage } from '../../features/auth/pages/LoginPage.jsx';
 import { AdminDashboardPage } from '../../features/dashboard/pages/AdminDashboardPage.jsx';
+import { UserListPage } from '../../features/users/pages/UserListPage.jsx';
+import { UserFormPage } from '../../features/users/pages/UserFormPage.jsx';
+import { ProfilePage } from '../../features/profile/pages/ProfilePage.jsx';
 import { ProductListPage } from '../../features/products/pages/ProductListPage.jsx';
 import { ProductFormPage } from '../../features/products/pages/ProductFormPage.jsx';
 import { IngredientListPage } from '../../features/ingredients/pages/IngredientListPage.jsx';
@@ -15,6 +17,7 @@ import { StockTransactionPage } from '../../features/stock/pages/StockTransactio
 import { RecipeListPage } from '../../features/recipes/pages/RecipeListPage.jsx';
 import { RecipeFormPage } from '../../features/recipes/pages/RecipeFormPage.jsx';
 import { ReportsPage } from '../../features/reports/pages/ReportsPage.jsx';
+import { KDSPage } from '../../features/kds/pages/KDSPage.jsx';
 import { POSPage } from '../../features/pos/pages/POSPage.jsx';
 import { OrderHistoryPage } from '../../features/orders/pages/OrderHistoryPage.jsx';
 import { OrderDetailPage } from '../../features/orders/pages/OrderDetailPage.jsx';
@@ -32,10 +35,8 @@ function RoleHomeRedirect() {
 export function AppRouter() {
   return (
     <Routes>
-      {/* Public Route */}
       <Route path={ROUTES.LOGIN} element={<LoginPage />} />
 
-      {/* Admin Protected Routes */}
       <Route
         path="/admin/*"
         element={
@@ -43,6 +44,9 @@ export function AppRouter() {
             <AppLayout>
               <Routes>
                 <Route path="dashboard" element={<AdminDashboardPage />} />
+                <Route path="users" element={<UserListPage />} />
+                <Route path="users/new" element={<UserFormPage />} />
+                <Route path="users/:id/edit" element={<UserFormPage />} />
                 <Route path="products" element={<ProductListPage />} />
                 <Route path="products/new" element={<ProductFormPage />} />
                 <Route path="products/:id/edit" element={<ProductFormPage />} />
@@ -55,14 +59,13 @@ export function AppRouter() {
                 <Route path="recipes/new" element={<RecipeFormPage />} />
                 <Route path="recipes/:id/edit" element={<RecipeFormPage />} />
                 <Route path="reports" element={<ReportsPage />} />
-                <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="*" element={<Navigate to={ROUTES.ADMIN_DASHBOARD} replace />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>
         }
       />
 
-      {/* Staff Protected Routes */}
       <Route
         path="/staff/*"
         element={
@@ -70,19 +73,31 @@ export function AppRouter() {
             <AppLayout>
               <Routes>
                 <Route path="pos" element={<POSPage />} />
+                <Route path="kds" element={<KDSPage />} />
                 <Route path="orders" element={<OrderHistoryPage />} />
                 <Route path="orders/:id" element={<OrderDetailPage />} />
-                <Route path="*" element={<Navigate to="/staff/pos" replace />} />
+                <Route path="*" element={<Navigate to={ROUTES.STAFF_POS} replace />} />
               </Routes>
             </AppLayout>
           </ProtectedRoute>
         }
       />
 
-      {/* Default Redirection */}
+      <Route
+        path={ROUTES.PROFILE}
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <ProfilePage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
       <Route path="/" element={<RoleHomeRedirect />} />
       <Route path="*" element={<RoleHomeRedirect />} />
     </Routes>
   );
 }
+
 export default AppRouter;

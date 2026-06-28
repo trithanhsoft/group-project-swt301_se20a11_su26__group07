@@ -5,6 +5,14 @@ import { env } from './config/env.js';
 import { testConnection } from './config/db.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
+import ingredientRoutes from './modules/ingredients/ingredient.routes.js';
+import kdsRoutes from './modules/kds/kds.routes.js';
+import orderRoutes from './modules/orders/order.routes.js';
+import productRoutes from './modules/products/product.routes.js';
+import recipeRoutes from './modules/recipes/recipe.routes.js';
+import reportRoutes from './modules/reports/report.routes.js';
+import stockRoutes from './modules/stock/stock.routes.js';
+import userRoutes from './modules/users/user.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 import { sendSuccess } from './utils/apiResponse.js';
 
@@ -31,6 +39,14 @@ app.get('/api/health', async (req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/ingredients', ingredientRoutes);
+app.use('/api/kds', kdsRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/recipes', recipeRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/stock', stockRoutes);
+app.use('/api/users', userRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

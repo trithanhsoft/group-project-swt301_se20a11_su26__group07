@@ -1,0 +1,547 @@
+import { pool, query } from '../../config/db.js';
+import { STOCK_TRANSACTION_TYPES } from '../../constants/stockTransactionTypes.js';
+import { ApiError } from '../../utils/ApiError.js';
+import { toPublicIngredient } from '../../utils/ingredient.js';
+import { buildStructuredStockNote } from '../../utils/stockNote.js';
+import { toPublicStockTransaction } from '../../utils/stockTransaction.js';
+
+const STOCK_NOTE_CONTEXTS = Object.freeze({
+  BATCH_IMPORT: 'BATCH_IMPORT',
+  DAILY_COUNT: 'DAILY_COUNT',
+});
+
+function normalizeString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeType(value) {
+  return normalizeString(value).toUpperCase();
+}
+
+function normalizeIngredientId(value) {
+  const normalizedValue = normalizeString(value);
+
+  if (!normalizedValue) {
+    throw new ApiError(400, 'Ingredient ID is required.');
+  }
+
+  return normalizedValue;
+}
+
+function ensurePositiveNumber(value, fieldName) {
+  const normalizedValue = Number(value);
+
+  if (!Number.isFinite(normalizedValue)) {
+    throw new ApiError(400, `${fieldName} is invalid.`);
+  }
+
+  if (normalizedValue <= 0) {
+    throw new ApiError(400, `${fieldName} must be greater than 0.`);
+  }
+
+  return normalizedValue;
+}
+
+function ensureNonNegativeNumber(value, fieldName) {
+  const normalizedValue = Number(value);
+
+  if (!Number.isFinite(normalizedValue)) {
+    throw new ApiError(400, `${fieldName} is invalid.`);
+  }
+
+  if (normalizedValue < 0) {
+    throw new ApiError(400, `${fieldName} cannot be negative.`);
+  }
+
+  return normalizedValue;
+}
+
+function ensureValidTransactionType(type) {
+  if (!Object.values(STOCK_TRANSACTION_TYPES).includes(type)) {
+    throw new ApiError(400, 'Stock transaction type is invalid.');
+  }
+}
+
+function ensureArrayWithItems(items, fieldName) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new ApiError(400, `${fieldName} must contain at least one item.`);
+  }
+}
+
+function ensureNoDuplicateIngredientIds(items) {
+  const seenIngredientIds = new Set();
+
+  for (const item of items) {
+    if (seenIngredientIds.has(item.ingredientId)) {
+      throw new ApiError(400, `Duplicate ingredient detected: ${item.ingredientId}.`);
+    }
+
+    seenIngredientIds.add(item.ingredientId);
+  }
+}
+
+function ensureIsoDate(value, fieldName) {
+  const normalizedValue = normalizeString(value);
+
+  if (!normalizedValue) {
+    throw new ApiError(400, `${fieldName} is required.`);
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
+    throw new ApiError(400, `${fieldName} must be in YYYY-MM-DD format.`);
+  }
+
+  const parsedDate = new Date(`${normalizedValue}T00:00:00.000Z`);
+
+  if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== normalizedValue) {
+    throw new ApiError(400, `${fieldName} is invalid.`);
+  }
+
+  return normalizedValue;
+}
+
+function getTodayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function generateSessionCode(prefix) {
+  const timestamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+  const randomSuffix = Math.floor(100 + Math.random() * 900);
+  return `${prefix}-${timestamp}-${randomSuffix}`;
+}
+
+function mergeNotes(commonNote, lineNote) {
+  const parts = [normalizeString(commonNote), normalizeString(lineNote)].filter(Boolean);
+  return parts.join(' | ');
+}
+
+function normalizeBatchImportItems(items) {
+  ensureArrayWithItems(items, 'Import items');
+
+  const normalizedItems = items.map((item, index) => ({
+    ingredientId: normalizeIngredientId(item.ingredientId ?? item.ingredient_id),
+    quantity: ensurePositiveNumber(item.quantity, `Import quantity at row ${index + 1}`),
+    note: normalizeString(item.note ?? item.notes),
+  }));
+
+  ensureNoDuplicateIngredientIds(normalizedItems);
+
+  return normalizedItems;
+}
+
+function normalizeDailyCountItems(items) {
+  ensureArrayWithItems(items, 'Stock count items');
+
+  const normalizedItems = items.map((item, index) => ({
+    ingredientId: normalizeIngredientId(item.ingredientId ?? item.ingredient_id),
+    actualStock: ensureNonNegativeNumber(
+      item.actualStock ?? item.actual_stock,
+      `Actual stock at row ${index + 1}`,
+    ),
+    note: normalizeString(item.note ?? item.notes),
+  }));
+
+  ensureNoDuplicateIngredientIds(normalizedItems);
+
+  return normalizedItems;
+}
+
+async function getTransactionRowById(client, transactionId) {
+  const result = await client.query(
+    `select st.id,
+            st.ingredient_id,
+            i.name as ingredient_name,
+            st.type,
+            st.quantity,
+            st.before_stock,
+            st.after_stock,
+            st.note,
+            st.order_id,
+            u.username as created_by_username,
+            st.created_at
+     from stock_transactions st
+     join ingredients i on i.id = st.ingredient_id
+     left join app_users u on u.id = st.created_by
+     where st.id = $1
+     limit 1`,
+    [transactionId],
+  );
+
+  return result.rows[0] || null;
+}
+
+async function insertStockTransaction(client, payload) {
+  const result = await client.query(
+    `insert into stock_transactions (
+       ingredient_id,
+       type,
+       quantity,
+       before_stock,
+       after_stock,
+       note,
+       created_by
+     )
+     values ($1, $2, $3, $4, $5, $6, $7)
+     returning id`,
+    [
+      payload.ingredientId,
+      payload.type,
+      payload.quantity,
+      payload.beforeStock,
+      payload.afterStock,
+      payload.note,
+      payload.createdBy,
+    ],
+  );
+
+  return getTransactionRowById(client, result.rows[0].id);
+}
+
+async function getIngredientForUpdate(client, ingredientId) {
+  const result = await client.query(
+    `select id,
+            name,
+            unit,
+            current_stock,
+            low_stock_threshold,
+            created_at,
+            updated_at
+     from ingredients
+     where id = $1
+       and deleted_at is null
+     limit 1
+     for update`,
+    [ingredientId],
+  );
+
+  return result.rows[0] || null;
+}
+
+async function getIngredientsForUpdate(client, ingredientIds) {
+  const result = await client.query(
+    `select id,
+            name,
+            unit,
+            current_stock,
+            low_stock_threshold,
+            created_at,
+            updated_at
+     from ingredients
+     where id = any($1::uuid[])
+       and deleted_at is null
+     for update`,
+    [ingredientIds],
+  );
+
+  return new Map(result.rows.map((row) => [row.id, row]));
+}
+
+function ensureAllIngredientsFound(ingredientsById, items) {
+  for (const item of items) {
+    if (!ingredientsById.has(item.ingredientId)) {
+      throw new ApiError(404, `Ingredient not found: ${item.ingredientId}.`);
+    }
+  }
+}
+
+async function updateIngredientStock(client, ingredientId, nextStock) {
+  const result = await client.query(
+    `update ingredients
+     set current_stock = $1,
+         updated_at = now()
+     where id = $2
+     returning id,
+               name,
+               unit,
+               current_stock,
+               low_stock_threshold,
+               created_at,
+               updated_at`,
+    [nextStock, ingredientId],
+  );
+
+  return result.rows[0] || null;
+}
+
+async function applyStockChange({ actorUser, ingredientId, note, quantity, type }) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+
+    const ingredient = await getIngredientForUpdate(client, ingredientId);
+
+    if (!ingredient) {
+      throw new ApiError(404, 'Ingredient not found.');
+    }
+
+    const beforeStock = Number(ingredient.current_stock || 0);
+    const afterStock =
+      type === STOCK_TRANSACTION_TYPES.IMPORT ? beforeStock + quantity : beforeStock - quantity;
+
+    if (afterStock < 0) {
+      throw new ApiError(400, `Insufficient stock for ${ingredient.name}.`);
+    }
+
+    const updatedIngredientRow = await updateIngredientStock(client, ingredientId, afterStock);
+    const transactionRow = await insertStockTransaction(client, {
+      ingredientId,
+      type,
+      quantity,
+      beforeStock,
+      afterStock,
+      note,
+      createdBy: actorUser.id,
+    });
+
+    await client.query('commit');
+
+    return {
+      ingredient: toPublicIngredient(updatedIngredientRow),
+      transaction: toPublicStockTransaction(transactionRow),
+    };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function importStock(payload, actorUser) {
+  const ingredientId = normalizeIngredientId(payload.ingredientId ?? payload.ingredient_id);
+  const quantity = ensurePositiveNumber(payload.quantity, 'Import quantity');
+  const note = normalizeString(payload.note ?? payload.notes);
+
+  return applyStockChange({
+    actorUser,
+    ingredientId,
+    note,
+    quantity,
+    type: STOCK_TRANSACTION_TYPES.IMPORT,
+  });
+}
+
+export async function adjustStock(payload, actorUser) {
+  const ingredientId = normalizeIngredientId(payload.ingredientId ?? payload.ingredient_id);
+  const quantity = ensurePositiveNumber(payload.quantity, 'Adjustment quantity');
+  const note = normalizeString(payload.note ?? payload.notes);
+
+  return applyStockChange({
+    actorUser,
+    ingredientId,
+    note,
+    quantity,
+    type: STOCK_TRANSACTION_TYPES.ADJUST,
+  });
+}
+
+export async function importStockBatch(payload, actorUser) {
+  const items = normalizeBatchImportItems(payload.items);
+  const commonNote = normalizeString(payload.note ?? payload.notes);
+  const eventDate = getTodayIsoDate();
+  const sessionCode = generateSessionCode('IMP');
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+
+    const ingredientIds = items.map((item) => item.ingredientId);
+    const ingredientsById = await getIngredientsForUpdate(client, ingredientIds);
+
+    ensureAllIngredientsFound(ingredientsById, items);
+
+    const results = [];
+
+    for (const item of items) {
+      const ingredient = ingredientsById.get(item.ingredientId);
+      const beforeStock = Number(ingredient.current_stock || 0);
+      const afterStock = beforeStock + item.quantity;
+      const mergedNote = mergeNotes(commonNote, item.note);
+      const updatedIngredientRow = await updateIngredientStock(client, item.ingredientId, afterStock);
+      const transactionRow = await insertStockTransaction(client, {
+        ingredientId: item.ingredientId,
+        type: STOCK_TRANSACTION_TYPES.IMPORT,
+        quantity: item.quantity,
+        beforeStock,
+        afterStock,
+        note: buildStructuredStockNote({
+          context: STOCK_NOTE_CONTEXTS.BATCH_IMPORT,
+          eventDate,
+          sessionCode,
+          note: mergedNote,
+        }),
+        createdBy: actorUser.id,
+      });
+
+      ingredientsById.set(item.ingredientId, updatedIngredientRow);
+
+      results.push({
+        ingredientId: item.ingredientId,
+        ingredientName: updatedIngredientRow.name,
+        inputQuantity: item.quantity,
+        note: mergedNote,
+        ingredient: toPublicIngredient(updatedIngredientRow),
+        transaction: toPublicStockTransaction(transactionRow),
+      });
+    }
+
+    await client.query('commit');
+
+    return {
+      mode: 'IMPORT',
+      eventDate,
+      sessionCode,
+      processedCount: results.length,
+      changedCount: results.length,
+      unchangedCount: 0,
+      items: results,
+    };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function countStockDaily(payload, actorUser) {
+  const items = normalizeDailyCountItems(payload.items);
+  const commonNote = normalizeString(payload.note ?? payload.notes);
+  const eventDate = payload.countDate
+    ? ensureIsoDate(payload.countDate, 'Count date')
+    : getTodayIsoDate();
+  const sessionCode = generateSessionCode('CNT');
+  const client = await pool.connect();
+
+  try {
+    await client.query('begin');
+
+    const ingredientIds = items.map((item) => item.ingredientId);
+    const ingredientsById = await getIngredientsForUpdate(client, ingredientIds);
+
+    ensureAllIngredientsFound(ingredientsById, items);
+
+    const results = [];
+    let changedCount = 0;
+
+    for (const item of items) {
+      const ingredient = ingredientsById.get(item.ingredientId);
+      const theoreticalStock = Number(ingredient.current_stock || 0);
+      const actualStock = item.actualStock;
+      const differenceQuantity = actualStock - theoreticalStock;
+      const mergedNote = mergeNotes(commonNote, item.note);
+      let updatedIngredientRow = ingredient;
+      let transaction = null;
+
+      if (differenceQuantity !== 0) {
+        changedCount += 1;
+        updatedIngredientRow = await updateIngredientStock(client, item.ingredientId, actualStock);
+
+        const transactionRow = await insertStockTransaction(client, {
+          ingredientId: item.ingredientId,
+          type: STOCK_TRANSACTION_TYPES.ADJUST,
+          quantity: Math.abs(differenceQuantity),
+          beforeStock: theoreticalStock,
+          afterStock: actualStock,
+          note: buildStructuredStockNote({
+            context: STOCK_NOTE_CONTEXTS.DAILY_COUNT,
+            eventDate,
+            sessionCode,
+            note: mergedNote,
+          }),
+          createdBy: actorUser.id,
+        });
+
+        transaction = toPublicStockTransaction(transactionRow);
+        ingredientsById.set(item.ingredientId, updatedIngredientRow);
+      }
+
+      results.push({
+        ingredientId: item.ingredientId,
+        ingredientName: updatedIngredientRow.name,
+        unit: updatedIngredientRow.unit,
+        theoreticalStock,
+        actualStock,
+        differenceQuantity,
+        changed: differenceQuantity !== 0,
+        note: mergedNote,
+        ingredient: toPublicIngredient(updatedIngredientRow),
+        transaction,
+      });
+    }
+
+    await client.query('commit');
+
+    return {
+      mode: 'DAILY_COUNT',
+      eventDate,
+      sessionCode,
+      processedCount: results.length,
+      changedCount,
+      unchangedCount: results.length - changedCount,
+      items: results,
+    };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function listStockTransactions({
+  ingredientId,
+  type,
+  dateFrom,
+  dateTo,
+} = {}) {
+  const params = [];
+  const conditions = [];
+  const normalizedType = normalizeType(type);
+
+  if (ingredientId) {
+    params.push(ingredientId);
+    conditions.push(`st.ingredient_id = $${params.length}`);
+  }
+
+  if (normalizedType && normalizedType !== 'ALL') {
+    ensureValidTransactionType(normalizedType);
+    params.push(normalizedType);
+    conditions.push(`st.type = $${params.length}`);
+  }
+
+  if (dateFrom) {
+    params.push(dateFrom);
+    conditions.push(`st.created_at::date >= $${params.length}`);
+  }
+
+  if (dateTo) {
+    params.push(dateTo);
+    conditions.push(`st.created_at::date <= $${params.length}`);
+  }
+
+  const whereClause = conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
+
+  const result = await query(
+    `select st.id,
+            st.ingredient_id,
+            i.name as ingredient_name,
+            st.type,
+            st.quantity,
+            st.before_stock,
+            st.after_stock,
+            st.note,
+            st.order_id,
+            u.username as created_by_username,
+            st.created_at
+     from stock_transactions st
+     join ingredients i on i.id = st.ingredient_id
+     left join app_users u on u.id = st.created_by
+     ${whereClause}
+     order by st.created_at desc`,
+    params,
+  );
+
+  return result.rows.map(toPublicStockTransaction);
+}

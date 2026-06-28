@@ -95,6 +95,8 @@ frontend/
 │   ├── features/
 │   │   ├── auth/
 │   │   ├── dashboard/
+│   │   ├── users/
+│   │   ├── profile/
 │   │   ├── products/
 │   │   ├── ingredients/
 │   │   ├── stock/
@@ -181,10 +183,19 @@ Public routes:
 /login
 ```
 
+Protected shared routes:
+
+```txt
+/profile
+```
+
 Admin routes:
 
 ```txt
 /admin/dashboard
+/admin/users
+/admin/users/new
+/admin/users/:id/edit
 /admin/products
 /admin/products/new
 /admin/products/:id/edit
@@ -251,6 +262,9 @@ Suggested mapping:
 Login screen -> features/auth/pages/LoginPage.jsx
 Admin dashboard screen -> features/dashboard/pages/AdminDashboardPage.jsx
 Staff/POS dashboard screen -> features/dashboard/pages/StaffDashboardPage.jsx
+User management screen -> features/users/pages/UserListPage.jsx
+User add/edit screen -> features/users/pages/UserFormPage.jsx
+Profile screen -> features/profile/pages/ProfilePage.jsx
 Product management screen -> features/products/pages/ProductListPage.jsx
 Product add/edit screen -> features/products/pages/ProductFormPage.jsx
 Ingredient management screen -> features/ingredients/pages/IngredientListPage.jsx
@@ -298,6 +312,7 @@ backend/
 │   ├── modules/
 │   │   ├── auth/
 │   │   ├── dashboard/
+│   │   ├── users/
 │   │   ├── products/
 │   │   ├── ingredients/
 │   │   ├── stock/
@@ -367,6 +382,8 @@ Auth:
 ```txt
 POST /api/auth/login
 GET  /api/auth/me
+PATCH /api/auth/me
+PATCH /api/auth/change-password
 POST /api/auth/logout optional frontend clear token only
 ```
 
@@ -374,6 +391,16 @@ Dashboard:
 
 ```txt
 GET /api/dashboard/summary
+```
+
+Users:
+
+```txt
+GET    /api/users
+POST   /api/users
+GET    /api/users/:id
+PATCH  /api/users/:id
+PATCH  /api/users/:id/reset-password
 ```
 
 Products:
@@ -441,11 +468,13 @@ Admin can access:
 
 ```txt
 /admin/dashboard
+/admin/users
 /admin/products
 /admin/ingredients
 /admin/stock
 /admin/recipes
 /admin/reports
+/profile
 ```
 
 Staff can access:
@@ -455,12 +484,15 @@ Staff can access:
 /staff/pos
 /staff/orders
 /staff/orders/:id
+/profile
 ```
 
 Backend protection:
 
 ```txt
 Admin APIs require role ADMIN.
+User Management APIs require role ADMIN.
+Profile APIs require authenticated user only.
 Staff POS order API requires role STAFF.
 Order history can be STAFF, or ADMIN if the team decides Admin can view all orders.
 Reports require role ADMIN.
@@ -589,6 +621,21 @@ backend/src/modules/dashboard/dashboard.controller.js
 backend/src/modules/dashboard/dashboard.service.js
 ```
 
+Users:
+
+```txt
+frontend/src/features/users/pages/UserListPage.jsx
+frontend/src/features/users/pages/UserFormPage.jsx
+frontend/src/features/users/api/userApi.js
+frontend/src/features/profile/pages/ProfilePage.jsx
+backend/src/modules/users/user.routes.js
+backend/src/modules/users/user.controller.js
+backend/src/modules/users/user.service.js
+backend/src/modules/auth/auth.routes.js
+backend/src/modules/auth/auth.controller.js
+backend/src/modules/auth/auth.service.js
+```
+
 Products:
 
 ```txt
@@ -645,6 +692,18 @@ Frontend login page
 Frontend route guard
 Frontend dashboard page
 Basic Admin/Staff redirect
+```
+
+Approved next feature after V1:
+
+```txt
+User Management V1
+- Admin user list
+- Admin create internal account
+- Admin update role/status
+- Admin reset password
+- User profile page
+- User change own password
 ```
 
 After V1 is pushed, other members can implement feature modules independently.

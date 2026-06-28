@@ -1,36 +1,50 @@
-import React from 'react';
-
 export function StatusBadge({ status, customLabel }) {
   let label = customLabel || status;
   let variant = 'neutral';
 
-  const s = String(status).toUpperCase();
-  if (s === 'ACTIVE' || s === 'CON_HANG' || s === 'IN_STOCK' || s === 'SUCCESS' || s === 'ĐÃ THIẾT LẬP') {
+  const normalizedStatus = String(status).toUpperCase();
+
+  if (
+    normalizedStatus === 'ACTIVE' ||
+    normalizedStatus === 'CON_HANG' ||
+    normalizedStatus === 'IN_STOCK' ||
+    normalizedStatus === 'SUCCESS'
+  ) {
     variant = 'success';
+
     if (!customLabel) {
-      if (s === 'ACTIVE') label = 'Hoạt động';
-      else if (s === 'CON_HANG' || s === 'IN_STOCK') label = 'Còn hàng';
-      else if (s === 'SUCCESS') label = 'Thành công';
+      if (normalizedStatus === 'ACTIVE') label = 'Hoạt động';
+      else if (normalizedStatus === 'CON_HANG' || normalizedStatus === 'IN_STOCK') label = 'Còn hàng';
+      else if (normalizedStatus === 'SUCCESS') label = 'Thành công';
     }
-  } else if (s === 'INACTIVE' || s === 'HET_HANG' || s === 'OUT_OF_STOCK' || s === 'ERROR' || s === 'FAILED' || s === 'CHƯA THIẾT LẬP') {
+  } else if (
+    normalizedStatus === 'INACTIVE' ||
+    normalizedStatus === 'HET_HANG' ||
+    normalizedStatus === 'OUT_OF_STOCK' ||
+    normalizedStatus === 'ERROR' ||
+    normalizedStatus === 'FAILED'
+  ) {
     variant = 'error';
+
     if (!customLabel) {
-      if (s === 'INACTIVE') label = 'Ngưng hoạt động';
-      else if (s === 'HET_HANG' || s === 'OUT_OF_STOCK') label = 'Hết hàng';
-      else if (s === 'ERROR' || s === 'FAILED') label = 'Thất bại';
+      if (normalizedStatus === 'INACTIVE') label = 'Ngưng hoạt động';
+      else if (normalizedStatus === 'HET_HANG' || normalizedStatus === 'OUT_OF_STOCK') label = 'Hết hàng';
+      else if (normalizedStatus === 'ERROR' || normalizedStatus === 'FAILED') label = 'Thất bại';
     }
-  } else if (s === 'LOW_STOCK' || s === 'SAP_HET' || s === 'WARNING') {
+  } else if (
+    normalizedStatus === 'LOW_STOCK' ||
+    normalizedStatus === 'SAP_HET' ||
+    normalizedStatus === 'WARNING'
+  ) {
     variant = 'warning';
+
     if (!customLabel) {
-      if (s === 'LOW_STOCK' || s === 'SAP_HET') label = 'Sắp hết hàng';
-      else if (s === 'WARNING') label = 'Cảnh báo';
+      if (normalizedStatus === 'LOW_STOCK' || normalizedStatus === 'SAP_HET') label = 'Sắp hết hàng';
+      else if (normalizedStatus === 'WARNING') label = 'Cảnh báo';
     }
   }
 
-  return (
-    <span className={`badge badge-${variant}`}>
-      {label}
-    </span>
-  );
+  return <span className={`badge badge-${variant}`}>{label}</span>;
 }
+
 export default StatusBadge;

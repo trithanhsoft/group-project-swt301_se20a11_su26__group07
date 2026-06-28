@@ -6,6 +6,12 @@ export const authApi = {
   },
   getMe() {
     return apiClient.get('/auth/me');
-  }
+  },
+  updateProfile(data) {
+    return apiClient.patch('/auth/me', data);
+  },
+  changePassword(data) {
+    return apiClient.patch('/auth/change-password', data);
+  },
 };
 export default authApi;

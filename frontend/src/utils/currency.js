@@ -1,15 +1,17 @@
 export function formatVND(amount) {
-  if (amount === undefined || amount === null || isNaN(amount)) {
+  if (amount === undefined || amount === null || Number.isNaN(Number(amount))) {
     return '0 ₫';
   }
-  // format number with dot separator: e.g. 25.000 ₫
-  const formatted = new Intl.NumberFormat('vi-VN').format(amount);
+
+  const formatted = new Intl.NumberFormat('vi-VN').format(Number(amount));
   return `${formatted} ₫`;
 }
 
-export function parseVND(str) {
-  if (!str) return 0;
-  const normalized = String(str).replace(/[^\d]/g, '');
-  const num = parseInt(normalized, 10);
-  return isNaN(num) ? 0 : num;
+export function parseVND(value) {
+  if (!value) return 0;
+
+  const normalized = String(value).replace(/[^\d]/g, '');
+  const numberValue = parseInt(normalized, 10);
+
+  return Number.isNaN(numberValue) ? 0 : numberValue;
 }

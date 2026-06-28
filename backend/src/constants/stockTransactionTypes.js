@@ -1,0 +1,5 @@
+export const STOCK_TRANSACTION_TYPES = Object.freeze({
+  IMPORT: 'IMPORT',
+  ADJUST: 'ADJUST',
+  ORDER_DEDUCT: 'ORDER_DEDUCT',
+});

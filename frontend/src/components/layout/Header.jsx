@@ -1,11 +1,15 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, Settings, User } from 'lucide-react';
 import { useAuth } from '../../app/providers/AuthProvider.jsx';
+import { ROUTES } from '../../constants/routes.js';
 
 export function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  const handleOpenProfile = () => {
+    navigate(ROUTES.PROFILE);
+  };
 
   const handleLogout = () => {
     logout();
@@ -15,21 +19,36 @@ export function Header() {
   return (
     <header className="app-header">
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span className="label-md" style={{ color: 'var(--color-secondary)', fontWeight: '500' }}>SWT301 Project v1</span>
+        <span className="label-md" style={{ color: 'var(--color-secondary)', fontWeight: '500' }}>
+          SWT301 Project v1
+        </span>
       </div>
-      
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <button
+          type="button"
+          onClick={handleOpenProfile}
+          className="btn btn-secondary btn-sm"
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px' }}
+        >
+          <Settings size={14} />
+          <span>Hồ sơ</span>
+        </button>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: 'var(--radius-full)',
-            backgroundColor: 'var(--color-surface-container-highest)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-primary)'
-          }}>
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--color-surface-container-highest)',
+              border: '1px solid var(--color-outline-variant)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--color-primary)',
+            }}
+          >
             <User size={16} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -41,7 +60,7 @@ export function Header() {
             </span>
           </div>
         </div>
-        
+
         <button
           type="button"
           onClick={handleLogout}
@@ -55,4 +74,5 @@ export function Header() {
     </header>
   );
 }
+
 export default Header;

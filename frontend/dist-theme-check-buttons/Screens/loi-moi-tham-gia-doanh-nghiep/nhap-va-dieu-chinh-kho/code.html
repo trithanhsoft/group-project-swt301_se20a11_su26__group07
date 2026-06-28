@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BeanLogic Admin - Nhập / Điều chỉnh kho</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-container": "#6f4e37",
+                      "on-secondary-fixed": "#191c1e",
+                      "on-surface-variant": "#50453e",
+                      "tertiary-fixed": "#6ffbbe",
+                      "on-tertiary-fixed-variant": "#005236",
+                      "secondary-fixed": "#e1e2e4",
+                      "on-tertiary-container": "#53e3a7",
+                      "on-secondary-container": "#606365",
+                      "primary-fixed-dim": "#eabda0",
+                      "tertiary": "#00482f",
+                      "error-container": "#ffdad6",
+                      "on-secondary-fixed-variant": "#444749",
+                      "surface": "#fff8f5",
+                      "on-error": "#ffffff",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-low": "#fbf2ee",
+                      "surface-dim": "#e1d8d5",
+                      "on-background": "#1e1b19",
+                      "inverse-surface": "#34302d",
+                      "surface-container-highest": "#e9e1dd",
+                      "on-primary": "#ffffff",
+                      "tertiary-fixed-dim": "#4edea3",
+                      "on-primary-fixed": "#2d1604",
+                      "surface-bright": "#fff8f5",
+                      "primary-fixed": "#ffdcc6",
+                      "outline": "#82746d",
+                      "tertiary-container": "#006242",
+                      "on-primary-fixed-variant": "#5f402a",
+                      "primary": "#553722",
+                      "on-surface": "#1e1b19",
+                      "on-secondary": "#ffffff",
+                      "secondary-container": "#dee0e2",
+                      "surface-variant": "#e9e1dd",
+                      "background": "#fff8f5",
+                      "surface-container": "#f5ece8",
+                      "inverse-on-surface": "#f8efeb",
+                      "on-primary-container": "#eec1a4",
+                      "error": "#ba1a1a",
+                      "surface-container-lowest": "#ffffff",
+                      "inverse-primary": "#eabda0",
+                      "outline-variant": "#d4c3ba",
+                      "on-tertiary-fixed": "#002113",
+                      "secondary": "#5c5f60",
+                      "surface-tint": "#79573f",
+                      "secondary-fixed-dim": "#c5c6c8",
+                      "on-error-container": "#93000a",
+                      "surface-container-high": "#efe6e3"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xs": "4px",
+                      "sidebar-width": "260px",
+                      "margin": "32px",
+                      "md": "16px",
+                      "xl": "32px",
+                      "container-max": "1440px",
+                      "gutter": "24px",
+                      "sm": "8px",
+                      "base": "4px",
+                      "lg": "24px"
+              },
+              "fontFamily": {
+                      "label-md": ["Inter"],
+                      "label-sm": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "title-md": ["Inter"],
+                      "body-md": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "display-lg": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "title-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                      "label-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "title-md": ["16px", {"lineHeight": "24px", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "display-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "title-lg": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-background text-on-background flex min-h-screen antialiased">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-screen w-sidebar-width flex flex-col p-4 bg-surface-container-low border-r border-outline-variant z-50 md:flex hidden">
+<div class="mb-8 px-4 flex items-center gap-3">
+<img alt="BeanLogic Logo" class="w-10 h-10 rounded-lg object-cover shadow-sm" data-alt="A macro shot of roasted coffee beans in warm, cinematic lighting. The image represents a high-end specialty coffee brand. The warm brown tones and rich textures evoke a sense of premium quality and craftsmanship." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCk_mnFpqH9ustOLf3hvnBWyvcb8jorZ87RP4G8ZbLFgaUTEuim60ETUGgGYdTNj6v1gCJ4NnHzJlqn7MRC-aUs8XSVDkIU5pNbYfckIhMqTx52T-ZL9L40lQdd1GQnRrmbatxYdBf_rCJWltkyu6d_qplJ5aZThxrzp1gITDo2CKZP6QTC6mkzdOwNgmBxDNcVdLfhUAkQLWXo5fEaLggNdoIimUmiQASBeSPWqsSyG2fuxYERd0ZS8WUO0ym7bCeiJtpq6K16OYid"/>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">BeanLogic Admin</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Downtown Branch</p>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto space-y-2">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">eco</span>
+<span class="font-label-md text-label-md">Ingredients</span>
+</a>
+<a class="flex items-center gap-3 bg-primary-container text-on-primary-container rounded-lg px-4 py-3 transition-transform scale-[0.98]" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">package_2</span>
+<span class="font-label-md text-label-md">Stock</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-label-md text-label-md">Recipes</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-md text-label-md">Staff</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</div>
+<div class="mt-auto pt-4 border-t border-outline-variant">
+<a class="flex items-center gap-3 text-on-surface-variant hover:bg-surface-container-highest rounded-lg px-4 py-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Logout</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 ml-0 md:ml-sidebar-width flex flex-col min-h-screen w-full">
+<!-- Top App Bar (Mobile Only for Admin, or generic header if requested. Standardizing to minimal header here as per SaaS style) -->
+<header class="h-20 px-8 flex items-center justify-between border-b border-outline-variant bg-surface sticky top-0 z-40">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Nhập / Điều chỉnh kho</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Cập nhật số lượng nguyên vật liệu thủ công.</p>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<img alt="Admin Avatar" class="w-10 h-10 rounded-full object-cover border border-outline-variant shadow-sm" data-alt="A professional headshot of an administrative user in a modern office setting, soft natural lighting, warm color palette reflecting the cafe's aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDGiyU8tw5IhbYn3a7_qRdUc6oEQi5OhCbUw1HNMXVHTf6dXFtnCZ8mBlsjwJj0Bnp1h1NgAnfN7uTGr55J-cBPFWQpF0LTNCFiDakkoUIhveJ-CVol3UHF2wcG4BeatBa6uR1-gBeCcot878pWewFJm5bipH4TMWYzPXELWiIS81ckeFkhV8EM0UmmY67UfQ2OPPvc2xVFJNssHeHweMVkE0XhgiwDZIJRUFDHjLFTRdKrANnG71Ya7992fRwjyuJ_eGXG0V-K1Nlf"/>
+</div>
+</header>
+<!-- Page Content -->
+<div class="p-8 flex-1 overflow-y-auto w-full max-w-container-max mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<!-- Main Form Form -->
+<div class="lg:col-span-2 space-y-6">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-6">
+<h3 class="font-title-lg text-title-lg text-on-surface mb-6 border-b border-outline-variant pb-4">Chi tiết giao dịch</h3>
+<form class="space-y-6">
+<!-- Transaction Type -->
+<div>
+<label class="block font-title-md text-title-md text-on-surface mb-2">Loại giao dịch</label>
+<div class="flex gap-4">
+<label class="flex items-center p-4 border border-outline-variant rounded-lg cursor-pointer hover:bg-surface-container-low transition-colors flex-1 bg-surface-container-low border-primary ring-1 ring-primary">
+<input checked="" class="text-primary focus:ring-primary h-4 w-4" name="transaction_type" type="radio" value="import"/>
+<div class="ml-3">
+<span class="block font-title-md text-title-md text-on-surface">Nhập kho</span>
+<span class="block font-body-md text-body-md text-on-surface-variant">Tăng số lượng tồn</span>
+</div>
+</label>
+<label class="flex items-center p-4 border border-outline-variant rounded-lg cursor-pointer hover:bg-surface-container-low transition-colors flex-1">
+<input class="text-primary focus:ring-primary h-4 w-4" name="transaction_type" type="radio" value="adjust"/>
+<div class="ml-3">
+<span class="block font-title-md text-title-md text-on-surface">Điều chỉnh</span>
+<span class="block font-body-md text-body-md text-on-surface-variant">Hao hụt, hư hỏng</span>
+</div>
+</label>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Ingredient Dropdown -->
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1" for="ingredient">Nguyên liệu *</label>
+<div class="relative">
+<select class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary appearance-none outline-none transition-all" id="ingredient">
+<option disabled="" selected="" value="">Chọn nguyên liệu...</option>
+<option value="coffee_beans_arabica">Hạt cà phê Arabica (kg)</option>
+<option value="coffee_beans_robusta">Hạt cà phê Robusta (kg)</option>
+<option value="fresh_milk">Sữa tươi thanh trùng (L)</option>
+<option value="sugar_syrup">Đường nước (L)</option>
+<option value="matcha_powder">Bột Matcha (kg)</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3 text-on-surface-variant pointer-events-none">expand_more</span>
+</div>
+</div>
+<!-- Reference Code -->
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1" for="ref_code">Mã tham chiếu (Phiếu nhập/hóa đơn)</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" id="ref_code" placeholder="VD: PO-2023-10-01" type="text"/>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+<!-- Quantity -->
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1" for="quantity">Số lượng (+/-) *</label>
+<div class="relative">
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-right pr-12" id="quantity" max="1000" min="-1000" step="0.1" type="number" value="10"/>
+<span class="absolute right-4 top-3 font-body-md text-on-surface-variant">kg</span>
+</div>
+</div>
+<!-- Cost (Optional) -->
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1" for="cost">Đơn giá nhập (VNĐ)</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-right" id="cost" placeholder="250,000" type="text"/>
+</div>
+</div>
+<!-- Reason Note -->
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1" for="reason">Lý do / Ghi chú</label>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none" id="reason" placeholder="Nhập từ nhà cung cấp XYZ..." rows="3"></textarea>
+</div>
+</form>
+</div>
+</div>
+<!-- Summary & Action Side Panel -->
+<div class="space-y-6">
+<!-- Stock Impact Card -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl shadow-sm p-6 relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+<span class="material-symbols-outlined text-6xl">inventory</span>
+</div>
+<h3 class="font-title-md text-title-md text-on-surface mb-4">Dự kiến tồn kho</h3>
+<div class="space-y-4">
+<div class="flex justify-between items-center py-2 border-b border-outline-variant/50">
+<span class="font-body-md text-body-md text-on-surface-variant">Tồn hiện tại</span>
+<span class="font-title-md text-title-md text-on-surface">45.5 kg</span>
+</div>
+<div class="flex justify-between items-center py-2 border-b border-outline-variant/50">
+<span class="font-body-md text-body-md text-on-surface-variant">Thay đổi</span>
+<span class="font-title-md text-title-md text-tertiary-container bg-tertiary-fixed/30 px-2 py-1 rounded">+ 10.0 kg</span>
+</div>
+<div class="flex justify-between items-center pt-2">
+<span class="font-title-md text-title-md text-on-surface">Tồn kho sau lưu</span>
+<span class="font-headline-md text-headline-md text-primary">55.5 kg</span>
+</div>
+</div>
+<div class="mt-6 p-4 bg-surface rounded-lg border border-outline-variant flex gap-3 items-start">
+<span class="material-symbols-outlined text-secondary text-sm mt-0.5">info</span>
+<p class="font-label-md text-label-md text-on-surface-variant">Giao dịch này sẽ được ghi nhận vào báo cáo kho tháng hiện tại. Hành động này không thể hoàn tác.</p>
+</div>
+</div>
+<!-- Actions -->
+<div class="flex flex-col gap-3">
+<button class="w-full bg-[#6F4E37] text-white font-title-md text-title-md py-3 px-6 rounded-lg shadow-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">save</span>
+                            Lưu giao dịch
+                        </button>
+<button class="w-full bg-surface-container-lowest border border-outline-variant text-on-surface font-title-md text-title-md py-3 px-6 rounded-lg shadow-sm hover:bg-surface-container-low transition-colors">
+                            Hủy bỏ
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

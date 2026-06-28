@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Trash } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Trash } from 'lucide-react';
 import { recipeApi } from '../api/recipeApi.js';
 import { productApi } from '../../products/api/productApi.js';
 import { ingredientApi } from '../../ingredients/api/ingredientApi.js';
@@ -11,10 +11,12 @@ import { NumberInput } from '../../../components/forms/NumberInput.jsx';
 import { Alert } from '../../../components/feedback/Alert.jsx';
 import { Toast } from '../../../components/feedback/Toast.jsx';
 import { ROUTES } from '../../../constants/routes.js';
+import { formatVND } from '../../../utils/currency.js';
 
-const MOCK_RECIPES_KEY = 'mini_pos_recipes';
-const MOCK_PRODUCTS_KEY = 'mini_pos_products';
-const MOCK_INGREDIENTS_KEY = 'mini_pos_ingredients';
+const EMPTY_RECIPE_ITEM = {
+  ingredientId: '',
+  quantity: '',
+};
 
 export function RecipeFormPage() {
   const navigate = useNavigate();
@@ -24,202 +26,165 @@ export function RecipeFormPage() {
   const [products, setProducts] = useState([]);
   const [ingredients, setIngredients] = useState([]);
   const [productId, setProductId] = useState('');
-  const [recipeItems, setRecipeItems] = useState([{ ingredient_id: '', quantity: '' }]);
-  
-  const [errors, setErrors] = useState({});
+  const [recipeItems, setRecipeItems] = useState([EMPTY_RECIPE_ITEM]);
   const [submitError, setSubmitError] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isUsingMock, setIsUsingMock] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const checkApiAndLoad = async () => {
+    let isCancelled = false;
+
+    const loadFormData = async () => {
       setIsLoading(true);
+      setSubmitError('');
+
       try {
-        const [prodRes, ingRes, recsRes] = await Promise.all([
-          productApi.getProducts(),
-          ingredientApi.getIngredients(),
-          recipeApi.getRecipes()
-        ]);
-        
-        setIsUsingMock(false);
-        setIngredients(ingRes.data.filter(i => i.status === 'ACTIVE'));
-        
-        const productsWithRecipe = recsRes.data.map(r => r.product_id);
-        const filteredProds = prodRes.data.filter(p => 
-          p.status === 'ACTIVE' && (!productsWithRecipe.includes(p.id) || (isEditMode && String(p.id) === String(productId)))
-        );
-        setProducts(filteredProds);
+        const requests = [productApi.getProducts(), ingredientApi.getIngredients()];
 
         if (isEditMode) {
-          const recRes = await recipeApi.getRecipe(id);
-          setProductId(String(recRes.data.product_id));
-          setRecipeItems(recRes.data.items.map(item => ({
-            ingredient_id: String(item.ingredient_id),
-            quantity: String(item.quantity)
-          })));
+          requests.push(recipeApi.getRecipe(id));
         }
-      } catch (err) {
-        setIsUsingMock(true);
-        const storedIng = localStorage.getItem(MOCK_INGREDIENTS_KEY);
-        const storedProd = localStorage.getItem(MOCK_PRODUCTS_KEY);
-        const storedRec = localStorage.getItem(MOCK_RECIPES_KEY);
 
-        const loadedIngs = storedIng ? JSON.parse(storedIng) : [];
-        setIngredients(loadedIngs.filter(i => i.status === 'ACTIVE'));
+        const [productsResponse, ingredientsResponse, recipeResponse] = await Promise.all(requests);
 
-        const loadedProds = storedProd ? JSON.parse(storedProd) : [];
-        const loadedRecs = storedRec ? JSON.parse(storedRec) : [];
+        if (isCancelled) {
+          return;
+        }
 
-        const productsWithRecipe = loadedRecs.map(r => r.product_id);
+        const loadedProducts = productsResponse.data.products || [];
+        const loadedIngredients = ingredientsResponse.data.ingredients || [];
+        const loadedRecipe = recipeResponse?.data?.recipe || null;
+        const currentProductId = loadedRecipe ? String(loadedRecipe.productId) : '';
 
-        if (isEditMode) {
-          const foundRec = loadedRecs.find(r => String(r.id) === String(id));
-          if (foundRec) {
-            setProductId(String(foundRec.product_id));
-            setRecipeItems(foundRec.items.map(item => ({
-              ingredient_id: String(item.ingredient_id),
-              quantity: String(item.quantity)
-            })));
-            setProducts(loadedProds.filter(p => p.status === 'ACTIVE'));
-          } else {
-            setSubmitError('Không tìm thấy công thức pha chế cần sửa trong bộ nhớ giả lập.');
-          }
+        setIngredients(loadedIngredients);
+        setProducts(
+          loadedProducts.filter(
+            (product) =>
+              !product.hasRecipe || (currentProductId && String(product.id) === currentProductId),
+          ),
+        );
+
+        if (loadedRecipe) {
+          setProductId(currentProductId);
+          setRecipeItems(
+            loadedRecipe.items.map((item) => ({
+              ingredientId: String(item.ingredientId),
+              quantity: String(item.quantity),
+            })),
+          );
         } else {
-          setProducts(loadedProds.filter(p => p.status === 'ACTIVE' && !productsWithRecipe.includes(p.id)));
+          setProductId('');
+          setRecipeItems([EMPTY_RECIPE_ITEM]);
+        }
+      } catch (loadError) {
+        if (!isCancelled) {
+          setSubmitError(loadError.message || 'Khong tai duoc du lieu cong thuc.');
         }
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
-    checkApiAndLoad();
+    void loadFormData();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [id, isEditMode]);
 
   const handleAddRow = () => {
-    setRecipeItems(prev => [...prev, { ingredient_id: '', quantity: '' }]);
-  };
-
-  const handleRemoveRow = (index) => {
-    setRecipeItems(prev => prev.filter((_, idx) => idx !== index));
-  };
-
-  const handleRowChange = (index, field, value) => {
-    setRecipeItems(prev => prev.map((item, idx) => 
-      idx === index ? { ...item, [field]: value } : item
-    ));
+    setRecipeItems((previous) => [...previous, { ...EMPTY_RECIPE_ITEM }]);
     setSubmitError('');
   };
 
-  const handleValidation = () => {
+  const handleRemoveRow = (index) => {
+    setRecipeItems((previous) => previous.filter((_, rowIndex) => rowIndex !== index));
+    setSubmitError('');
+  };
+
+  const handleRowChange = (index, field, value) => {
+    setRecipeItems((previous) =>
+      previous.map((item, rowIndex) =>
+        rowIndex === index ? { ...item, [field]: value } : item,
+      ),
+    );
+    setSubmitError('');
+  };
+
+  const validateForm = () => {
     if (!productId) {
-      setSubmitError('Vui lòng chọn sản phẩm áp dụng.');
+      setSubmitError('Vui long chon san pham ap dung cong thuc.');
       return false;
     }
 
     if (recipeItems.length === 0) {
-      setSubmitError('Công thức phải có ít nhất 1 nguyên liệu thành phần.');
+      setSubmitError('Cong thuc phai co it nhat mot dong nguyen lieu.');
       return false;
     }
 
-    const selectedIngs = [];
-    for (let i = 0; i < recipeItems.length; i++) {
-      const item = recipeItems[i];
-      if (!item.ingredient_id) {
-        setSubmitError(`Dòng thứ ${i + 1}: Vui lòng chọn nguyên liệu.`);
-        return false;
-      }
-      
-      const qty = Number(item.quantity);
-      if (isNaN(qty) || qty <= 0) {
-        setSubmitError(`Dòng thứ ${i + 1}: Số lượng nguyên liệu phải lớn hơn 0.`);
+    const selectedIngredientIds = new Set();
+
+    for (let index = 0; index < recipeItems.length; index += 1) {
+      const item = recipeItems[index];
+
+      if (!item.ingredientId) {
+        setSubmitError(`Dong thu ${index + 1}: vui long chon nguyen lieu.`);
         return false;
       }
 
-      if (selectedIngs.includes(item.ingredient_id)) {
-        const duplicateIngName = ingredients.find(ing => String(ing.id) === String(item.ingredient_id))?.name || 'này';
-        setSubmitError(`Nguyên liệu "${duplicateIngName}" bị lặp lại trong công thức. Vui lòng gộp dòng hoặc thay đổi.`);
+      const quantity = Number(item.quantity);
+
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        setSubmitError(`Dong thu ${index + 1}: so luong phai lon hon 0.`);
         return false;
       }
-      selectedIngs.push(item.ingredient_id);
+
+      if (selectedIngredientIds.has(item.ingredientId)) {
+        setSubmitError('Mot nguyen lieu khong duoc lap lai trong cung mot cong thuc.');
+        return false;
+      }
+
+      selectedIngredientIds.add(item.ingredientId);
     }
 
     return true;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitError('');
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-    if (!handleValidation()) return;
+    if (!validateForm()) {
+      return;
+    }
 
     setIsSubmitting(true);
-    
-    const formattedItems = recipeItems.map(item => {
-      const selectedIng = ingredients.find(ing => String(ing.id) === String(item.ingredient_id));
-      return {
-        ingredient_id: Number(item.ingredient_id),
-        name: selectedIng.name,
-        unit: selectedIng.unit,
-        quantity: Number(item.quantity)
-      };
-    });
+    setSubmitError('');
 
-    const selectedProd = products.find(p => String(p.id) === String(productId));
-
-    const recipeData = {
-      product_id: Number(productId),
-      product_name: selectedProd ? selectedProd.name : 'Sản phẩm',
-      price: selectedProd ? selectedProd.price : 0,
-      items: formattedItems
+    const payload = {
+      productId,
+      items: recipeItems.map((item) => ({
+        ingredientId: item.ingredientId,
+        quantity: Number(item.quantity),
+      })),
     };
 
     try {
-      if (isUsingMock) {
-        const storedRec = localStorage.getItem(MOCK_RECIPES_KEY);
-        let listRec = storedRec ? JSON.parse(storedRec) : [];
-
-        if (isEditMode) {
-          listRec = listRec.map(r => String(r.id) === String(id) ? { ...r, ...recipeData } : r);
-          setToastMsg('Cập nhật công thức thành công (Giả lập)');
-        } else {
-          const newId = listRec.length > 0 ? Math.max(...listRec.map(r => r.id)) + 1 : 1;
-          listRec.push({ id: newId, ...recipeData });
-          setToastMsg('Thiết lập công thức thành công (Giả lập)');
-        }
-        localStorage.setItem(MOCK_RECIPES_KEY, JSON.stringify(listRec));
-
-        const storedProducts = localStorage.getItem(MOCK_PRODUCTS_KEY);
-        if (storedProducts) {
-          const productsList = JSON.parse(storedProducts);
-          const updatedProductsList = productsList.map(p => 
-            String(p.id) === String(productId) ? { ...p, has_recipe: true } : p
-          );
-          localStorage.setItem(MOCK_PRODUCTS_KEY, JSON.stringify(updatedProductsList));
-        }
-
-        setTimeout(() => navigate(ROUTES.ADMIN_RECIPES), 1000);
+      if (isEditMode) {
+        await recipeApi.updateRecipe(id, payload);
+        setToastMsg('Cap nhat cong thuc thanh cong.');
       } else {
-        const payload = {
-          productId: Number(productId),
-          items: formattedItems.map(i => ({
-            ingredientId: i.ingredient_id,
-            quantity: i.quantity
-          }))
-        };
-
-        if (isEditMode) {
-          await recipeApi.updateRecipe(id, payload);
-          setToastMsg('Cập nhật công thức thành công');
-        } else {
-          await recipeApi.createRecipe(payload);
-          setToastMsg('Thiết lập công thức thành công');
-        }
-        setTimeout(() => navigate(ROUTES.ADMIN_RECIPES), 1000);
+        await recipeApi.createRecipe(payload);
+        setToastMsg('Tao cong thuc thanh cong.');
       }
-    } catch (err) {
-      setSubmitError(err.message || 'Lưu thông tin công thức pha chế thất bại.');
+
+      setTimeout(() => {
+        navigate(ROUTES.ADMIN_RECIPES);
+      }, 900);
+    } catch (saveError) {
+      setSubmitError(saveError.message || 'Luu cong thuc that bai.');
     } finally {
       setIsSubmitting(false);
     }
@@ -228,122 +193,163 @@ export function RecipeFormPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <PageHeader
-        title={isEditMode ? 'Chỉnh sửa công thức' : 'Thiết lập công thức pha chế'}
-        description="Định lượng khối lượng, thể tích các thành phần để tạo nên 1 đơn vị ly nước."
+        title={isEditMode ? 'Chinh sua cong thuc' : 'Tao cong thuc moi'}
+        description="Dinh luong nguyen lieu can cho mot don vi san pham."
         actions={
           <Button variant="secondary" onClick={() => navigate(ROUTES.ADMIN_RECIPES)} icon={<ArrowLeft size={16} />}>
-            Quay lại danh sách
+            Quay lai danh sach
           </Button>
         }
       />
 
-      {isUsingMock && (
+      {submitError && <Alert type="error" message={submitError} onClose={() => setSubmitError('')} />}
+
+      {!isLoading && !isEditMode && products.length === 0 && (
         <Alert
           type="info"
-          message="Hệ thống đang hoạt động ở chế độ GIẢ LẬP LOCAL vì backend API công thức chưa hoàn tất kết nối CSDL."
+          message="Tat ca san pham hien da co cong thuc hoac chua co san pham nao de thiet lap."
         />
       )}
 
-      {submitError && <Alert type="error" message={submitError} onClose={() => setSubmitError('')} />}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(260px, 1fr)', gap: 'var(--spacing-lg)' }}>
+        <div className="card">
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>
+              <div className="spinner" style={{ margin: '0 auto 12px' }}></div>
+              <p style={{ color: 'var(--color-secondary)', margin: 0 }}>Dang tai du lieu cong thuc...</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <SelectInput
+                label="San pham ap dung"
+                name="productId"
+                value={productId}
+                onChange={(event) => setProductId(event.target.value)}
+                options={products.map((product) => ({
+                  value: product.id,
+                  label: `${product.name} - ${product.status} - ${formatVND(product.price)}`,
+                }))}
+                placeholder="-- Chon san pham --"
+                required
+                disabled={isEditMode || isSubmitting}
+              />
 
-      <div className="card" style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-        {isLoading ? (
-          <div style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>
-            <div className="spinner" style={{ margin: '0 auto 12px' }}></div>
-            <p style={{ color: 'var(--color-secondary)', margin: 0 }}>Đang tải danh sách dữ liệu...</p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            
-            <SelectInput
-              label="Chọn sản phẩm áp dụng công thức"
-              name="productId"
-              value={productId}
-              onChange={(e) => setProductId(e.target.value)}
-              options={products.map(p => ({ value: p.id, label: `${p.name} (Đơn giá: ${p.price} ₫)` }))}
-              placeholder="-- Chọn sản phẩm active chưa thiết lập công thức --"
-              required
-              disabled={isEditMode || isSubmitting}
-            />
+              <div
+                style={{
+                  borderTop: '1px solid var(--color-outline-variant)',
+                  paddingTop: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ margin: 0, color: 'var(--color-primary)' }}>Thanh phan nguyen lieu</h4>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleAddRow}
+                    disabled={isSubmitting}
+                    icon={<Plus size={14} />}
+                  >
+                    Them dong
+                  </Button>
+                </div>
 
-            <div style={{ borderTop: '1px solid var(--color-outline-variant)', paddingTop: '16px', marginTop: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)', margin: 0 }}>
-                  Thành phần nguyên liệu
-                </h4>
-                <Button type="button" variant="secondary" size="sm" onClick={handleAddRow} disabled={isSubmitting} icon={<Plus size={14} />}>
-                  Thêm dòng nguyên liệu
-                </Button>
-              </div>
+                {recipeItems.map((item, index) => {
+                  const selectedIngredient = ingredients.find(
+                    (ingredient) => String(ingredient.id) === String(item.ingredientId),
+                  );
 
-              {recipeItems.map((row, index) => {
-                const selectedIng = ingredients.find(ing => String(ing.id) === String(row.ingredient_id));
-                const unitStr = selectedIng ? selectedIng.unit : '';
-
-                return (
-                  <div key={index} style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '12px',
-                    marginBottom: '12px',
-                    padding: '12px',
-                    backgroundColor: 'var(--color-surface-container-low)',
-                    borderRadius: 'var(--radius-default)',
-                    border: '1px solid var(--color-outline-variant)'
-                  }}>
-                    <div style={{ flex: 2 }}>
+                  return (
+                    <div
+                      key={`${index}-${item.ingredientId}`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr) 90px 40px',
+                        gap: '12px',
+                        alignItems: 'center',
+                        padding: '12px',
+                        backgroundColor: 'var(--color-surface-container-low)',
+                        borderRadius: 'var(--radius-default)',
+                        border: '1px solid var(--color-outline-variant)',
+                      }}
+                    >
                       <SelectInput
-                        value={row.ingredient_id}
-                        onChange={(e) => handleRowChange(index, 'ingredient_id', e.target.value)}
-                        options={ingredients.map(ing => ({ value: ing.id, label: ing.name }))}
-                        placeholder="-- Chọn nguyên liệu --"
+                        value={item.ingredientId}
+                        onChange={(event) => handleRowChange(index, 'ingredientId', event.target.value)}
+                        options={ingredients.map((ingredient) => ({
+                          value: ingredient.id,
+                          label: `${ingredient.name} (${ingredient.unit})`,
+                        }))}
+                        placeholder="-- Chon nguyen lieu --"
                         disabled={isSubmitting}
                       />
-                    </div>
 
-                    <div style={{ flex: 1 }}>
                       <NumberInput
-                        placeholder="Số lượng"
-                        value={row.quantity}
-                        onChange={(e) => handleRowChange(index, 'quantity', e.target.value)}
+                        value={item.quantity}
+                        onChange={(event) => handleRowChange(index, 'quantity', event.target.value)}
+                        placeholder="So luong"
                         disabled={isSubmitting}
                       />
-                    </div>
 
-                    <div style={{ width: '80px', display: 'flex', alignItems: 'center', height: '40px', fontSize: '13px', color: 'var(--color-secondary)', fontWeight: '500' }}>
-                      {unitStr}
-                    </div>
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          color: 'var(--color-secondary)',
+                          fontWeight: '600',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {selectedIngredient?.unit || '--'}
+                      </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', height: '40px' }}>
                       <button
                         type="button"
                         onClick={() => handleRemoveRow(index)}
                         disabled={isSubmitting || recipeItems.length === 1}
-                        style={{ color: 'var(--color-error)' }}
-                        title="Xóa dòng"
+                        style={{ color: 'var(--color-error)', display: 'flex', justifyContent: 'center' }}
+                        title="Xoa dong"
                       >
                         <Trash size={16} />
                       </button>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
-              <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.ADMIN_RECIPES)} disabled={isSubmitting}>
-                Hủy bỏ
-              </Button>
-              <Button type="submit" variant="primary" loading={isSubmitting}>
-                Lưu công thức
-              </Button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.ADMIN_RECIPES)} disabled={isSubmitting}>
+                  Huy bo
+                </Button>
+                <Button type="submit" variant="primary" loading={isSubmitting} icon={<Save size={16} />}>
+                  {isEditMode ? 'Luu thay doi' : 'Tao cong thuc'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
+
+        <div className="card">
+          <h3 style={{ marginTop: 0, color: 'var(--color-primary)' }}>Ghi chu</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '14px' }}>
+            <div>
+              <strong>1 san pham:</strong> Chi co toi da mot cong thuc dang hoat dong.
             </div>
-          </form>
-        )}
+            <div>
+              <strong>Don vi:</strong> Duoc lay tu master data cua nguyen lieu, khong nhap tay trong cong thuc.
+            </div>
+            <div>
+              <strong>Ton kho:</strong> Nguyen lieu ton thap van co the dua vao cong thuc; viec chan ban se do POS va order service xu ly sau.
+            </div>
+          </div>
+        </div>
       </div>
 
       <Toast message={toastMsg} type="success" onClose={() => setToastMsg('')} />
     </div>
   );
 }
+
 export default RecipeFormPage;

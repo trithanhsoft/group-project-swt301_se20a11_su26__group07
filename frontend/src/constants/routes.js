@@ -1,6 +1,10 @@
 export const ROUTES = {
   LOGIN: '/login',
+  PROFILE: '/profile',
   ADMIN_DASHBOARD: '/admin/dashboard',
+  ADMIN_USERS: '/admin/users',
+  ADMIN_USERS_NEW: '/admin/users/new',
+  ADMIN_USERS_EDIT: '/admin/users/:id/edit',
   ADMIN_PRODUCTS: '/admin/products',
   ADMIN_PRODUCTS_NEW: '/admin/products/new',
   ADMIN_PRODUCTS_EDIT: '/admin/products/:id/edit',
@@ -14,6 +18,7 @@ export const ROUTES = {
   ADMIN_RECIPES_EDIT: '/admin/recipes/:id/edit',
   ADMIN_REPORTS: '/admin/reports',
   STAFF_POS: '/staff/pos',
+  STAFF_KDS: '/staff/kds',
   STAFF_ORDERS: '/staff/orders',
   STAFF_ORDERS_DETAIL: '/staff/orders/:id',
 };

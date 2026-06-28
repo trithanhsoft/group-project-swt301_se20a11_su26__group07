@@ -13,7 +13,7 @@ export async function requireAuth(req, res, next) {
 
     const payload = verifyAccessToken(token);
     const result = await query(
-      `select id, username, email, full_name, role, status, created_at, updated_at
+      `select id, username, email, full_name, role, status, last_login_at, created_at, updated_at
        from app_users
        where id = $1 and deleted_at is null
        limit 1`,
@@ -33,6 +33,9 @@ export async function requireAuth(req, res, next) {
       fullName: user.full_name,
       role: user.role,
       status: user.status,
+      lastLoginAt: user.last_login_at,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
     };
 
     next();

@@ -1,220 +1,292 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, RotateCcw, AlertOctagon } from 'lucide-react';
+import { AlertOctagon, Edit, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { ingredientApi } from '../api/ingredientApi.js';
 import { PageHeader } from '../../../components/layout/PageHeader.jsx';
 import { Button } from '../../../components/common/Button.jsx';
+import { CompactCode } from '../../../components/common/CompactCode.jsx';
 import { DataTable } from '../../../components/common/DataTable.jsx';
 import { StatusBadge } from '../../../components/common/StatusBadge.jsx';
+import { TagBadge } from '../../../components/common/TagBadge.jsx';
 import { Alert } from '../../../components/feedback/Alert.jsx';
 import { ConfirmDialog } from '../../../components/feedback/ConfirmDialog.jsx';
 import { Toast } from '../../../components/feedback/Toast.jsx';
 import { TextInput } from '../../../components/forms/TextInput.jsx';
 import { SelectInput } from '../../../components/forms/SelectInput.jsx';
+import { INGREDIENT_TAG_SUGGESTIONS } from '../../../constants/ingredientTags.js';
 import { ROUTES } from '../../../constants/routes.js';
 
-const MOCK_INGREDIENTS_KEY = 'mini_pos_ingredients';
-const DEFAULT_MOCK_INGREDIENTS = [
-  { id: 1, name: 'Hat ca phe Robusta', unit: 'GRAM', current_stock: 5000, low_stock_threshold: 1000, status: 'ACTIVE' },
-  { id: 2, name: 'Sua dac Ong Tho', unit: 'ML', current_stock: 800, low_stock_threshold: 1000, status: 'ACTIVE' },
-  { id: 3, name: 'Sua tuoi khong duong', unit: 'ML', current_stock: 2000, low_stock_threshold: 500, status: 'ACTIVE' },
-  { id: 4, name: 'Siro Dao', unit: 'ML', current_stock: 0, low_stock_threshold: 200, status: 'INACTIVE' },
-];
+const centeredCellContentStyle = {
+  display: 'flex',
+  justifyContent: 'center',
+};
+
+const numericCellContentStyle = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  alignItems: 'center',
+  gap: '6px',
+  fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
+};
+
+function mergeTagOptions(tags, selectedTag) {
+  const mergedTags = Array.from(
+    new Set([
+      ...INGREDIENT_TAG_SUGGESTIONS,
+      ...(tags || []),
+      ...(selectedTag && selectedTag !== 'ALL' ? [selectedTag] : []),
+    ]),
+  );
+  return [
+    { value: 'ALL', label: 'Tất cả tag' },
+    ...mergedTags.map((tag) => ({ value: tag, label: tag })),
+  ];
+}
 
 export function IngredientListPage() {
   const navigate = useNavigate();
   const [ingredients, setIngredients] = useState([]);
-  const [filteredIngredients, setFilteredIngredients] = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isUsingMock, setIsUsingMock] = useState(false);
+  const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  
+  const [filterMode, setFilterMode] = useState('ALL');
+  const [tagFilter, setTagFilter] = useState('ALL');
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [deleteId, setDeleteId] = useState(null);
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState('success');
 
-  const loadIngredients = async () => {
-    setIsLoading(true);
-    try {
-      const res = await ingredientApi.getIngredients();
-      setIngredients(res.data || []);
-      setIsUsingMock(false);
-    } catch (err) {
-      const stored = localStorage.getItem(MOCK_INGREDIENTS_KEY);
-      if (stored) {
-        setIngredients(JSON.parse(stored));
-      } else {
-        setIngredients(DEFAULT_MOCK_INGREDIENTS);
-        localStorage.setItem(MOCK_INGREDIENTS_KEY, JSON.stringify(DEFAULT_MOCK_INGREDIENTS));
-      }
-      setIsUsingMock(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const tagOptions = useMemo(() => mergeTagOptions(availableTags, tagFilter), [availableTags, tagFilter]);
 
   useEffect(() => {
-    loadIngredients();
-  }, []);
+    let isCancelled = false;
 
-  useEffect(() => {
-    let result = [...ingredients];
+    const timer = setTimeout(() => {
+      const loadIngredients = async () => {
+        setIsLoading(true);
+        setError('');
 
-    if (searchQuery.trim() !== '') {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(item => item.name.toLowerCase().includes(q));
+        try {
+          const response = await ingredientApi.getIngredients({
+            search: searchQuery.trim(),
+            lowStock: filterMode === 'LOW',
+            tag: tagFilter,
+          });
+
+          if (!isCancelled) {
+            setIngredients(response.data.ingredients || []);
+            setAvailableTags(response.data.tags || []);
+          }
+        } catch (loadError) {
+          if (!isCancelled) {
+            setIngredients([]);
+            setAvailableTags([]);
+            setError(loadError.message || 'Không tải được danh sách nguyên liệu.');
+          }
+        } finally {
+          if (!isCancelled) {
+            setIsLoading(false);
+          }
+        }
+      };
+
+      void loadIngredients();
+    }, 250);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [reloadNonce, searchQuery, filterMode, tagFilter]);
+
+  const handleDelete = async () => {
+    if (!deleteId) {
+      return;
     }
-
-    if (statusFilter !== 'ALL') {
-      if (statusFilter === 'LOW') {
-        result = result.filter(item => Number(item.current_stock) <= Number(item.low_stock_threshold));
-      } else {
-        result = result.filter(item => item.status === statusFilter);
-      }
-    }
-
-    setFilteredIngredients(result);
-  }, [ingredients, searchQuery, statusFilter]);
-
-  const showToast = (msg, type = 'success') => {
-    setToastMsg(msg);
-    setToastType(type);
-  };
-
-  const handleEdit = (id) => {
-    navigate(`/admin/ingredients/${id}/edit`);
-  };
-
-  const handleDeleteClick = (id) => {
-    setDeleteId(id);
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteId) return;
 
     try {
-      if (isUsingMock) {
-        const updated = ingredients.filter(item => item.id !== deleteId);
-        setIngredients(updated);
-        localStorage.setItem(MOCK_INGREDIENTS_KEY, JSON.stringify(updated));
-        showToast('Xóa nguyên liệu thành công (Giả lập)');
-      } else {
-        await ingredientApi.deleteIngredient(deleteId);
-        showToast('Xóa nguyên liệu thành công');
-        loadIngredients();
-      }
-    } catch (err) {
-      showToast(err.message || 'Xóa nguyên liệu thất bại.', 'error');
+      await ingredientApi.deleteIngredient(deleteId);
+      setToastType('success');
+      setToastMsg('Xóa nguyên liệu thành công.');
+      setReloadNonce((current) => current + 1);
+    } catch (deleteError) {
+      setToastType('error');
+      setToastMsg(deleteError.message || 'Xóa nguyên liệu thất bại.');
     } finally {
       setDeleteId(null);
     }
   };
 
   const headers = [
-    { key: 'id', label: 'Mã NL', style: { width: '80px' } },
-    { key: 'name', label: 'Tên nguyên liệu', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.name}</strong> },
-    { key: 'unit', label: 'Đơn vị tính' },
     {
-      key: 'current_stock',
-      label: 'Tồn kho hiện tại',
-      render: (row) => {
-        const isLow = Number(row.current_stock) <= Number(row.low_stock_threshold);
-        return (
-          <span style={{
-            color: isLow ? 'var(--color-error)' : 'var(--color-on-background)',
-            fontWeight: isLow ? 'bold' : 'normal',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
-            {row.current_stock}
-            {isLow && <AlertOctagon size={14} title="Dưới định mức tối thiểu!" />}
-          </span>
-        );
-      }
+      key: 'id',
+      label: 'Mã NL',
+      style: { width: '124px', whiteSpace: 'nowrap' },
+      render: (row) => <CompactCode value={row.id} prefix="NL" />,
     },
-    { key: 'low_stock_threshold', label: 'Định mức tối thiểu' },
-    { key: 'status', label: 'Trạng thái', render: (row) => <StatusBadge status={row.status} /> },
+    {
+      key: 'name',
+      label: 'Tên nguyên liệu',
+      style: { minWidth: '220px' },
+      render: (row) => (
+        <strong style={{ color: 'var(--color-primary)', lineHeight: 1.4 }}>{row.name}</strong>
+      ),
+    },
+    {
+      key: 'tag',
+      label: 'Tag',
+      style: { width: '140px', textAlign: 'center', whiteSpace: 'nowrap' },
+      render: (row) => (
+        <div style={centeredCellContentStyle}>
+          <TagBadge label={row.tag} />
+        </div>
+      ),
+    },
+    {
+      key: 'unit',
+      label: 'Đơn vị',
+      style: { width: '96px', textAlign: 'center', whiteSpace: 'nowrap' },
+      render: (row) => <span style={{ fontWeight: '600' }}>{row.unit}</span>,
+    },
+    {
+      key: 'currentStock',
+      label: 'Tồn hiện tại',
+      style: { width: '160px', textAlign: 'right', whiteSpace: 'nowrap' },
+      render: (row) => (
+        <div
+          style={{
+            ...numericCellContentStyle,
+            color: row.isLowStock ? 'var(--color-error)' : 'var(--color-on-background)',
+            fontWeight: row.isLowStock ? '700' : '500',
+          }}
+        >
+          <span>
+            {row.currentStock} {row.unit}
+          </span>
+          {row.isLowStock && <AlertOctagon size={14} title="Dưới ngưỡng tồn tối thiểu" />}
+        </div>
+      ),
+    },
+    {
+      key: 'lowStockThreshold',
+      label: 'Ngưỡng cảnh báo',
+      style: { width: '160px', textAlign: 'right', whiteSpace: 'nowrap' },
+      render: (row) => (
+        <span style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+          {row.lowStockThreshold} {row.unit}
+        </span>
+      ),
+    },
+    {
+      key: 'isLowStock',
+      label: 'Cảnh báo',
+      style: { width: '150px', textAlign: 'center', whiteSpace: 'nowrap' },
+      render: (row) => (
+        <div style={centeredCellContentStyle}>
+          <StatusBadge
+            status={row.isLowStock ? 'WARNING' : 'SUCCESS'}
+            customLabel={row.isLowStock ? 'Sắp hết hàng' : 'An toàn'}
+          />
+        </div>
+      ),
+    },
     {
       key: 'actions',
       label: 'Hành động',
-      style: { width: '120px', textAlign: 'right' },
+      style: { width: '96px', textAlign: 'right', whiteSpace: 'nowrap' },
       render: (row) => (
-        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={() => handleEdit(row.id)} title="Chỉnh sửa" style={{ color: 'var(--color-primary)', display: 'flex', padding: 0 }}>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={() => navigate(`/admin/ingredients/${row.id}/edit`)}
+            title="Chỉnh sửa"
+            style={{ color: 'var(--color-primary)', display: 'flex', padding: 0 }}
+          >
             <Edit size={16} />
           </button>
-          <button type="button" onClick={() => handleDeleteClick(row.id)} title="Xóa" style={{ color: 'var(--color-error)', display: 'flex', padding: 0 }}>
+          <button
+            type="button"
+            onClick={() => setDeleteId(row.id)}
+            title="Xóa"
+            style={{ color: 'var(--color-error)', display: 'flex', padding: 0 }}
+          >
             <Trash2 size={16} />
           </button>
         </div>
-      )
-    }
+      ),
+    },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <PageHeader
         title="Quản lý nguyên liệu"
-        description="Quản lý nguyên vật liệu pha chế, thiết lập định mức tồn kho an toàn."
+        description="Quản lý danh mục nguyên liệu pha chế và lọc nhanh theo tag như Bột cà phê, Syrup, Topping."
         actions={
           <>
-            <Button variant="secondary" onClick={loadIngredients} disabled={isLoading} icon={<RotateCcw size={16} />}>
+            <Button
+              variant="secondary"
+              onClick={() => setReloadNonce((current) => current + 1)}
+              disabled={isLoading}
+              icon={<RotateCcw size={16} />}
+            >
               Tải lại
             </Button>
-            <Button variant="primary" onClick={() => navigate(ROUTES.ADMIN_INGREDIENTS_NEW)} icon={<Plus size={16} />}>
+            <Button
+              variant="primary"
+              onClick={() => navigate(ROUTES.ADMIN_INGREDIENTS_NEW)}
+              icon={<Plus size={16} />}
+            >
               Thêm nguyên liệu
             </Button>
           </>
         }
       />
 
-      {isUsingMock && (
-        <Alert
-          type="info"
-          message="Hệ thống đang hoạt động ở chế độ GIẢ LẬP LOCAL vì backend API nguyên liệu chưa hoàn tất kết nối CSDL."
-        />
-      )}
+      {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
-      {/* Filters card */}
       <div className="card" style={{ padding: 'var(--spacing-sm)' }}>
         <div style={{ display: 'flex', gap: 'var(--spacing-md)', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ flex: 1, minWidth: '250px' }}>
+          <div style={{ flex: 1, minWidth: '240px' }}>
             <TextInput
               placeholder="Tìm kiếm nguyên liệu theo tên..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+
           <div style={{ width: '220px' }}>
             <SelectInput
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={filterMode}
+              onChange={(e) => setFilterMode(e.target.value)}
               options={[
-                { value: 'ALL', label: 'Tất cả trạng thái' },
-                { value: 'ACTIVE', label: 'Hoạt động' },
-                { value: 'INACTIVE', label: 'Ngưng hoạt động' },
-                { value: 'LOW', label: 'Hàng sắp hết (Dưới định mức)' }
+                { value: 'ALL', label: 'Tất cả nguyên liệu' },
+                { value: 'LOW', label: 'Chỉ nguyên liệu sắp hết' },
               ]}
             />
+          </div>
+
+          <div style={{ width: '180px' }}>
+            <SelectInput value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} options={tagOptions} />
           </div>
         </div>
       </div>
 
-      {/* Table */}
       <DataTable
         headers={headers}
-        data={filteredIngredients}
+        data={ingredients}
         loading={isLoading}
         emptyMessage="Không tìm thấy nguyên liệu nào phù hợp."
+        style={{ minWidth: '1120px' }}
       />
 
       <ConfirmDialog
         isOpen={deleteId !== null}
         title="Xóa nguyên liệu"
-        message="Bạn có chắc chắn muốn xóa nguyên liệu này? Các công thức tham chiếu đến nguyên liệu này có thể bị ảnh hưởng."
-        onConfirm={confirmDelete}
+        message="Bạn có chắc chắn muốn xóa nguyên liệu này? Nếu nguyên liệu đã được dùng trong công thức hoặc giao dịch kho, hệ thống sẽ từ chối thao tác."
+        onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
       />
 
@@ -222,4 +294,5 @@ export function IngredientListPage() {
     </div>
   );
 }
+
 export default IngredientListPage;

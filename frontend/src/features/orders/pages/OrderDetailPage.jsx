@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { orderApi } from '../api/orderApi.js';
@@ -11,138 +11,205 @@ import { formatVND } from '../../../utils/currency.js';
 import { formatDateTime } from '../../../utils/date.js';
 import { ROUTES } from '../../../constants/routes.js';
 
-const MOCK_ORDERS_KEY = 'mini_pos_orders';
+function getPaymentMethodLabel(paymentMethod) {
+  if (paymentMethod === 'CASH') {
+    return 'Tien mat';
+  }
+
+  return paymentMethod || '--';
+}
+
+function getKdsStatusLabel(kdsStatus) {
+  return kdsStatus === 'COMPLETED' ? 'Da hoan thanh' : 'Don moi';
+}
+
+function getKdsStatusVariant(kdsStatus) {
+  return kdsStatus === 'COMPLETED' ? 'SUCCESS' : 'WARNING';
+}
 
 export function OrderDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
-  
   const [order, setOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isUsingMock, setIsUsingMock] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let isCancelled = false;
+
     const loadOrderDetail = async () => {
       setIsLoading(true);
       setError('');
+
       try {
-        const res = await orderApi.getOrder(id);
-        setOrder(res.data);
-        setIsUsingMock(false);
-      } catch (err) {
-        setIsUsingMock(true);
-        const stored = localStorage.getItem(MOCK_ORDERS_KEY);
-        if (stored) {
-          const list = JSON.parse(stored);
-          const found = list.find(o => String(o.id) === String(id));
-          if (found) {
-            setOrder(found);
-          } else {
-            setError('Không tìm thấy đơn hàng trong bộ nhớ.');
-          }
-        } else {
-          setError('Không tìm thấy dữ liệu hóa đơn.');
+        const response = await orderApi.getOrder(id);
+
+        if (!isCancelled) {
+          setOrder(response.data.order || null);
+        }
+      } catch (loadError) {
+        if (!isCancelled) {
+          setOrder(null);
+          setError(loadError.message || 'Khong tai duoc thong tin don hang.');
         }
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
-    loadOrderDetail();
+    void loadOrderDetail();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [id]);
 
   const headers = [
-    { key: 'product_name', label: 'Tên món nước', render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.product_name || row.product?.name}</strong> },
-    { key: 'price', label: 'Đơn giá', render: (row) => formatVND(row.price) },
-    { key: 'quantity', label: 'Số lượng' },
     {
-      key: 'total',
-      label: 'Thành tiền',
-      render: (row) => formatVND(row.price * row.quantity)
-    }
+      key: 'productName',
+      label: 'Ten mon nuoc',
+      render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.productName}</strong>,
+    },
+    {
+      key: 'unitPrice',
+      label: 'Don gia',
+      render: (row) => formatVND(row.unitPrice),
+    },
+    {
+      key: 'quantity',
+      label: 'So luong',
+    },
+    {
+      key: 'subtotal',
+      label: 'Thanh tien',
+      render: (row) => formatVND(row.subtotal),
+    },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <PageHeader
-        title={order ? `Chi tiết đơn hàng #${order.order_code}` : 'Thông tin chi tiết đơn hàng'}
-        description="Tra cứu chi tiết thành phần món nước và đơn giá đã bán."
+        title={order ? `Chi tiet don hang #${order.orderCode}` : 'Thong tin chi tiet don hang'}
+        description="Xem lai san pham, snapshot gia va thong tin thanh toan cua don hang."
         actions={
           <Button variant="secondary" onClick={() => navigate(ROUTES.STAFF_ORDERS)} icon={<ArrowLeft size={16} />}>
-            Quay lại lịch sử
+            Quay lai lich su
           </Button>
         }
       />
 
-      {isUsingMock && (
-        <Alert
-          type="info"
-          message="Hệ thống đang hoạt động ở chế độ GIẢ LẬP LOCAL vì backend API đơn hàng chưa hoàn tất kết nối CSDL."
-        />
-      )}
-
-      {error && <Alert type="error" message={error} />}
+      {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>
           <div className="spinner" style={{ margin: '0 auto 12px' }}></div>
-          <p style={{ color: 'var(--color-secondary)', margin: 0 }}>Đang tải thông tin đơn hàng...</p>
+          <p style={{ color: 'var(--color-secondary)', margin: 0 }}>Dang tai thong tin don hang...</p>
         </div>
       ) : order ? (
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--spacing-lg)', alignItems: 'start' }}>
-          
-          {/* Left card: purchased items */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
             <div className="card">
               <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-primary)', margin: 0, marginBottom: '16px' }}>
-                Danh sách món nước đã gọi
+                Danh sach mon da ban
               </h3>
-              <DataTable
-                headers={headers}
-                data={order.items || order.order_items || []}
-                loading={false}
-              />
+              <DataTable headers={headers} data={order.items || []} loading={false} />
             </div>
           </div>
 
-          {/* Right card: summaries */}
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-primary)', borderBottom: '1px solid var(--color-outline-variant)', paddingBottom: '12px', margin: 0 }}>
-              Thông tin thanh toán
+            <h3
+              style={{
+                fontSize: '15px',
+                fontWeight: '700',
+                color: 'var(--color-primary)',
+                borderBottom: '1px solid var(--color-outline-variant)',
+                paddingBottom: '12px',
+                margin: 0,
+              }}
+            >
+              Thong tin thanh toan
             </h3>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-secondary)' }}>Mã hóa đơn</span>
-                <strong style={{ color: 'var(--color-on-background)' }}>#{order.order_code}</strong>
+                <span style={{ color: 'var(--color-secondary)' }}>Ma don hang</span>
+                <strong style={{ color: 'var(--color-on-background)' }}>#{order.orderCode}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-secondary)' }}>Thời gian tạo</span>
-                <span style={{ color: 'var(--color-on-background)' }}>{formatDateTime(order.created_at)}</span>
+                <span style={{ color: 'var(--color-secondary)' }}>Thoi gian tao</span>
+                <span style={{ color: 'var(--color-on-background)' }}>{formatDateTime(order.createdAt)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-secondary)' }}>Thu ngân thực hiện</span>
+                <span style={{ color: 'var(--color-secondary)' }}>Thoi gian thanh toan</span>
+                <span style={{ color: 'var(--color-on-background)' }}>
+                  {order.paidAt ? formatDateTime(order.paidAt) : '--'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-secondary)' }}>Thu ngan thuc hien</span>
                 <span style={{ color: 'var(--color-on-background)', textTransform: 'capitalize' }}>
-                  {order.created_by || order.user?.username || 'Staff'}
+                  {order.staffUsername || 'Staff'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-secondary)' }}>Phuong thuc</span>
+                <span style={{ color: 'var(--color-on-background)' }}>
+                  {getPaymentMethodLabel(order.paymentMethod)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-secondary)' }}>Khach dua</span>
+                <span style={{ color: 'var(--color-on-background)' }}>
+                  {order.amountReceived === null ? '--' : formatVND(order.amountReceived)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-secondary)' }}>Tien thoi</span>
+                <span style={{ color: 'var(--color-on-background)' }}>
+                  {order.changeAmount === null ? '--' : formatVND(order.changeAmount)}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--color-secondary)' }}>Trạng thái đơn</span>
+                <span style={{ color: 'var(--color-secondary)' }}>Trang thai don</span>
                 <StatusBadge status={order.status} />
               </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--color-secondary)' }}>Trang thai KDS</span>
+                <StatusBadge
+                  status={getKdsStatusVariant(order.kdsStatus)}
+                  customLabel={getKdsStatusLabel(order.kdsStatus)}
+                />
+              </div>
+              {order.note ? (
+                <div style={{ borderTop: '1px solid var(--color-outline-variant)', paddingTop: '12px' }}>
+                  <div
+                    style={{
+                      color: 'var(--color-secondary)',
+                      fontSize: '12px',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    Ghi chu
+                  </div>
+                  <div style={{ color: 'var(--color-on-background)', lineHeight: 1.5 }}>
+                    {order.note}
+                  </div>
+                </div>
+              ) : null}
               <div style={{ borderTop: '1px solid var(--color-outline-variant)', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)' }}>Tổng cộng</span>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)' }}>Tong cong</span>
                 <strong style={{ fontSize: '18px', color: 'var(--color-tertiary-container)' }}>
-                  {formatVND(order.total_amount)}
+                  {formatVND(order.totalAmount)}
                 </strong>
               </div>
             </div>
           </div>
-
         </div>
       ) : null}
     </div>
   );
 }
+
 export default OrderDetailPage;

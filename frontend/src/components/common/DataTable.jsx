@@ -1,4 +1,3 @@
-import React from 'react';
 import { EmptyState } from './EmptyState.jsx';
 
 export function DataTable({
@@ -14,9 +13,9 @@ export function DataTable({
       <table className="data-table" {...props}>
         <thead>
           <tr>
-            {headers.map((h, i) => (
-              <th key={h.key || i} style={h.style}>
-                {h.label}
+            {headers.map((header, index) => (
+              <th key={header.key || index} style={header.style}>
+                {header.label}
               </th>
             ))}
           </tr>
@@ -44,9 +43,9 @@ export function DataTable({
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 style={{ cursor: onRowClick ? 'pointer' : 'default' }}
               >
-                {headers.map((h, colIndex) => (
-                  <td key={colIndex} style={h.style}>
-                    {h.render ? h.render(row, rowIndex) : row[h.key]}
+                {headers.map((header, columnIndex) => (
+                  <td key={columnIndex} style={header.style}>
+                    {header.render ? header.render(row, rowIndex) : row[header.key]}
                   </td>
                 ))}
               </tr>
@@ -57,4 +56,5 @@ export function DataTable({
     </div>
   );
 }
+
 export default DataTable;
