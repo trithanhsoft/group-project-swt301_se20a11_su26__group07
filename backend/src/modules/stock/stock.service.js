@@ -596,3 +596,104 @@ export async function getStockForecast() {
 
   return forecasts;
 }
+
+export async function discardStock(payload, actorUser) {
+  const note = normalizeString(payload.note ?? payload.notes) || '';
+  
+  if (payload.productId || payload.product_id) {
+    const productId = String(payload.productId ?? payload.product_id ?? '').trim();
+    if (!productId) {
+      throw new ApiError(400, 'Product ID is required.');
+    }
+    const quantity = Number(payload.quantity);
+    if (Number.isNaN(quantity) || quantity <= 0) {
+      throw new ApiError(400, 'Discard quantity must be a positive number.');
+    }
+    
+    // 1. Get product detail to check if it exists and fetch name
+    const productResult = await query('select name from products where id = $1 and deleted_at is null', [productId]);
+    if (productResult.rowCount === 0) {
+      throw new ApiError(404, 'Product not found.');
+    }
+    const productName = productResult.rows[0].name;
+
+    // 2. Fetch the recipe of this product
+    const recipeResult = await query('select id from recipes where product_id = $1 and deleted_at is null', [productId]);
+    if (recipeResult.rowCount === 0) {
+      throw new ApiError(400, `Sản phẩm "${productName}" chưa được thiết lập công thức định lượng.`);
+    }
+    const recipeId = recipeResult.rows[0].id;
+    const itemsResult = await query('select ingredient_id, quantity_required from recipe_items where recipe_id = $1', [recipeId]);
+    if (itemsResult.rowCount === 0) {
+      throw new ApiError(400, `Công thức của "${productName}" chưa có thành phần nguyên liệu nào.`);
+    }
+
+    // 3. Batch apply stock changes for all recipe ingredients
+    const client = await pool.connect();
+    try {
+      await client.query('begin');
+      for (const row of itemsResult.rows) {
+        const ingredientId = row.ingredient_id;
+        const reqQty = Number(row.quantity_required);
+        const totalQtyToDeduct = reqQty * quantity;
+
+        const ingredientResult = await client.query('select name, current_stock from ingredients where id = $1 and deleted_at is null for update', [ingredientId]);
+        if (ingredientResult.rowCount === 0) {
+          throw new ApiError(404, `Ingredient ID ${ingredientId} not found.`);
+        }
+        const ingredient = ingredientResult.rows[0];
+        const beforeStock = Number(ingredient.current_stock || 0);
+        const afterStock = beforeStock - totalQtyToDeduct;
+
+        if (afterStock < 0) {
+          throw new ApiError(400, `Không đủ tồn kho cho nguyên liệu "${ingredient.name}". Cần ${totalQtyToDeduct}, hiện có ${beforeStock}.`);
+        }
+
+        await client.query('update ingredients set current_stock = $1, updated_at = now() where id = $2', [afterStock, ingredientId]);
+        await client.query(
+          `insert into stock_transactions (ingredient_id, type, quantity, before_stock, after_stock, note, created_by)
+           values ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            ingredientId,
+            STOCK_TRANSACTION_TYPES.ADJUST,
+            totalQtyToDeduct,
+            beforeStock,
+            afterStock,
+            `[HỦY HÀNG] Hủy thành phẩm "${productName}" x${quantity}: ${note}`.slice(0, 255),
+            actorUser.id,
+          ]
+        );
+      }
+      await client.query('commit');
+      return { success: true };
+    } catch (err) {
+      await client.query('rollback');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } else {
+    // Discard single raw ingredient
+    const ingredientId = normalizeIngredientId(payload.ingredientId ?? payload.ingredient_id);
+    const quantity = Number(payload.quantity);
+    if (Number.isNaN(quantity) || quantity <= 0) {
+      throw new ApiError(400, 'Discard quantity must be a positive number.');
+    }
+    
+    // Fetch ingredient details to put in the note
+    const ingredientResult = await query('select name from ingredients where id = $1 and deleted_at is null', [ingredientId]);
+    if (ingredientResult.rowCount === 0) {
+      throw new ApiError(404, 'Ingredient not found.');
+    }
+    const ingredientName = ingredientResult.rows[0].name;
+
+    return applyStockChange({
+      actorUser,
+      ingredientId,
+      note: `[HỦY HÀNG] Hủy nguyên liệu "${ingredientName}": ${note}`.slice(0, 255),
+      quantity,
+      type: STOCK_TRANSACTION_TYPES.ADJUST,
+    });
+  }
+}
+

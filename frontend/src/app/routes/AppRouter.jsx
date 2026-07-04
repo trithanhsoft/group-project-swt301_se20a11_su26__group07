@@ -81,6 +81,7 @@ export function AppRouter() {
                 <Route path="kds" element={<KDSPage />} />
                 <Route path="orders" element={<OrderHistoryPage />} />
                 <Route path="orders/:id" element={<OrderDetailPage />} />
+                <Route path="stock" element={<StockPage />} />
                 <Route path="hr" element={<StaffHRPage />} />
                 <Route path="*" element={<Navigate to={ROUTES.STAFF_POS} replace />} />
               </Routes>

@@ -136,19 +136,20 @@
   padding: 20px var(--spacing-sm);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px; /* Taller gap */
 }
 
 .sidebar-nav-link {
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 10px 14px;
+  padding: 14px 18px; /* Taller padding */
   border-radius: var(--radius-default);
   color: var(--color-sidebar-text);
   font-weight: 500;
-  gap: 12px;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  font-size: 15px; /* Larger font size */
+  gap: 16px; /* Larger gap */
+  transition: background-color 0.15s ease, color 0.15s ease, padding 0.2s ease;
 }
 
 .sidebar-nav-link:hover {
@@ -164,6 +165,72 @@
 
 .sidebar-nav-link svg {
   flex-shrink: 0;
+}
+
+.app-sidebar.is-collapsed {
+  width: 80px;
+}
+
+.app-sidebar.is-collapsed .sidebar-brand-text {
+  display: none;
+}
+
+.app-sidebar.is-collapsed .sidebar-brand {
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.app-sidebar.is-collapsed .sidebar-nav-link {
+  justify-content: center;
+  padding: 14px 0;
+  gap: 0;
+}
+
+.app-sidebar.is-collapsed .sidebar-nav-link-text {
+  display: none;
+}
+
+.sidebar-toggle-container {
+  margin-top: auto;
+  border-top: 1px solid var(--color-sidebar-border);
+  padding: 12px var(--spacing-sm);
+}
+
+.app-sidebar.is-collapsed .sidebar-toggle-container {
+  padding: 12px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.sidebar-toggle-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: var(--color-sidebar-text-muted);
+  border-radius: var(--radius-default);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  gap: 12px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-toggle-btn:hover {
+  background-color: var(--color-sidebar-item-hover);
+  color: var(--color-sidebar-item-active-text);
+}
+
+.app-sidebar.is-collapsed .sidebar-toggle-btn {
+  justify-content: center;
+  padding: 12px 0;
+  gap: 0;
+}
+
+.app-sidebar.is-collapsed .sidebar-toggle-btn-text {
+  display: none;
 }
 
 .auth-form-wrapper {
@@ -232,5 +299,50 @@
   .pos-split-layout {
     grid-template-columns: 1fr;
   }
+}
+
+/* Custom tooltips for collapsed sidebar */
+.app-sidebar.is-collapsed [data-tooltip] {
+  position: relative;
+}
+
+.app-sidebar.is-collapsed [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%) translateX(10px);
+  background-color: var(--color-on-background);
+  color: var(--color-background);
+  padding: 6px 12px;
+  border-radius: var(--radius-default);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: var(--shadow-medium);
+  z-index: 1000;
+}
+
+.app-sidebar.is-collapsed [data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(20px);
+}
+
+/* Interactive Card Hover Styles */
+.interactive-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.interactive-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+  border-color: var(--color-primary);
+}
+
+.interactive-card:active {
+  transform: translateY(0);
 }
 

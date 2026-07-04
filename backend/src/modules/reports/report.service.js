@@ -86,3 +86,43 @@ export async function listLowStockIngredients() {
     updatedAt: row.updated_at || null,
   }));
 }
+
+export async function listDiscardReport({ dateFrom, dateTo } = {}) {
+  const params = [];
+  const conditions = ["st.note like '[HỦY HÀNG]%'"];
+
+  if (dateFrom) {
+    params.push(dateFrom);
+    conditions.push(`st.created_at >= $${params.length}`);
+  }
+
+  if (dateTo) {
+    params.push(dateTo);
+    conditions.push(`st.created_at <= $${params.length}`);
+  }
+
+  const whereClause = `where ${conditions.join(' and ')}`;
+
+  const result = await query(
+    `select st.id, st.ingredient_id, i.name as ingredient_name, i.unit, st.quantity, st.before_stock, st.after_stock, st.note, st.created_at, u.full_name as creator_name
+     from stock_transactions st
+     join ingredients i on i.id = st.ingredient_id
+     left join app_users u on u.id = st.created_by
+     ${whereClause}
+     order by st.created_at desc`,
+    params,
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    ingredientId: row.ingredient_id,
+    ingredientName: row.ingredient_name,
+    unit: row.unit,
+    quantity: toNumber(row.quantity),
+    beforeStock: toNumber(row.before_stock),
+    afterStock: toNumber(row.after_stock),
+    note: row.note,
+    createdAt: row.created_at,
+    creatorName: row.creator_name || 'Hệ thống',
+  }));
+}

@@ -42,6 +42,9 @@ export const stockApi = {
   getForecast() {
     return apiClient.get('/stock/forecast');
   },
+  discardStock(data) {
+    return apiClient.post('/stock/discard', data);
+  },
 };
 
 export default stockApi;

@@ -14,7 +14,40 @@ import { formatDateTime } from '../../../utils/date.js';
 const ALL_TAGS_VALUE = 'ALL';
 const PAYMENT_METHOD = 'CASH';
 const PAYMENT_METHOD_LABEL = 'Tiền mặt';
-const QUICK_CASH_AMOUNTS = [100000, 200000, 500000];
+function getQuickCashSuggestions(totalAmount) {
+  if (!totalAmount || totalAmount <= 0) return [];
+  
+  const suggestions = new Set();
+  
+  // 1. Suggest exact amount
+  suggestions.add(totalAmount);
+  
+  // 2. Suggest round up to next 10k (only if total < 50k)
+  if (totalAmount < 50000) {
+    suggestions.add(Math.ceil(totalAmount / 10000) * 10000);
+  }
+  
+  // 3. Suggest round up to next 50k (only if total < 200k)
+  if (totalAmount < 200000) {
+    suggestions.add(Math.ceil(totalAmount / 50000) * 50000);
+  }
+  
+  // 4. Suggest round up to next 100k
+  suggestions.add(Math.ceil(totalAmount / 100000) * 100000);
+  
+  // 5. Suggest standard larger VND bills
+  const standardBills = [20000, 50000, 100000, 200000, 500000];
+  standardBills.forEach(bill => {
+    if (bill > totalAmount) {
+      suggestions.add(bill);
+    }
+  });
+  
+  // Return sorted suggestions array
+  return Array.from(suggestions)
+    .sort((a, b) => a - b)
+    .slice(0, 4); // Limit to max 4 options
+}
 
 function normalizeProductTag(tag) {
   const normalizedTag = String(tag ?? '').trim();
@@ -341,18 +374,22 @@ export function POSPage() {
   const tagOptions = useMemo(() => buildProductTagOptions(products), [products]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (!tagOptions.includes(activeTag)) {
       setActiveTag(ALL_TAGS_VALUE);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [activeTag, tagOptions]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (cart.length === 0) {
       setAmountReceived(null);
       setOrderNote('');
       setCheckoutError('');
       setIsConfirmModalOpen(false);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [cart.length]);
 
   const cartTotal = cart.reduce(
@@ -706,20 +743,23 @@ export function POSPage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: '16px',
               }}
             >
               {filteredProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="card"
+                  className="card interactive-card"
+                  onClick={() => handleAddToCart(product)}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
                     padding: '16px',
                     gap: '12px',
+                    cursor: 'pointer',
+                    userSelect: 'none',
                   }}
                 >
                   <div>
@@ -738,19 +778,10 @@ export function POSPage() {
                         fontSize: '12px',
                         color: 'var(--color-secondary)',
                         marginTop: '4px',
-                        marginBottom: '8px',
+                        marginBottom: '0',
                       }}
                     >
                       {product.tag}
-                    </p>
-                    <p
-                      style={{
-                        fontSize: '12px',
-                        color: 'var(--color-secondary)',
-                        margin: 0,
-                      }}
-                    >
-                      Sản phẩm có công thức và sẵn sàng bán trên POS.
                     </p>
                   </div>
 
@@ -759,19 +790,11 @@ export function POSPage() {
                       style={{
                         fontWeight: '700',
                         color: 'var(--color-tertiary-container)',
-                        fontSize: '14px',
+                        fontSize: '15px',
                       }}
                     >
                       {formatVND(product.price)}
                     </span>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleAddToCart(product)}
-                      disabled={isSubmitting}
-                    >
-                      Chọn mua
-                    </Button>
                   </div>
                 </div>
               ))}
@@ -983,26 +1006,22 @@ export function POSPage() {
                   <strong style={{ color: 'var(--color-primary)' }}>{PAYMENT_METHOD_LABEL}</strong>
                 </div>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  <Button
-                    size="sm"
-                    variant={amountReceived === cartTotal ? 'primary' : 'secondary'}
-                    onClick={() => handleSetAmountReceived(cartTotal)}
-                    disabled={isSubmitting || cartTotal <= 0}
-                  >
-                    Đúng {formatVND(cartTotal)}
-                  </Button>
-                  {QUICK_CASH_AMOUNTS.map((quickAmount) => (
-                    <Button
-                      key={quickAmount}
-                      size="sm"
-                      variant={amountReceived === quickAmount ? 'primary' : 'secondary'}
-                      onClick={() => handleSetAmountReceived(quickAmount)}
-                      disabled={isSubmitting || quickAmount < cartTotal}
-                    >
-                      {formatVND(quickAmount)}
-                    </Button>
-                  ))}
+                <div style={{ display: 'flex', gap: '6px', width: '100%', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '4px' }}>
+                  {getQuickCashSuggestions(cartTotal).map((quickAmount) => {
+                    const isExact = quickAmount === cartTotal;
+                    return (
+                      <Button
+                        key={quickAmount}
+                        size="sm"
+                        variant={amountReceived === quickAmount ? 'primary' : 'secondary'}
+                        onClick={() => handleSetAmountReceived(quickAmount)}
+                        disabled={isSubmitting || cartTotal <= 0}
+                        style={{ flex: 1, whiteSpace: 'nowrap' }}
+                      >
+                        {isExact ? `Đúng ${formatVND(quickAmount)}` : formatVND(quickAmount)}
+                      </Button>
+                    );
+                  })}
                 </div>
 
                 <TextInput

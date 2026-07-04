@@ -12,12 +12,13 @@ import {
 
 const router = Router();
 
-router.use(requireAuth, requireRole(ROLES.ADMIN));
+router.use(requireAuth);
 
-router.get('/', getIngredients);
-router.post('/', createNewIngredient);
-router.get('/:id', getIngredient);
-router.patch('/:id', updateExistingIngredient);
-router.delete('/:id', deleteExistingIngredient);
+router.get('/', requireRole(ROLES.ADMIN, ROLES.STAFF), getIngredients);
+router.get('/:id', requireRole(ROLES.ADMIN, ROLES.STAFF), getIngredient);
+
+router.post('/', requireRole(ROLES.ADMIN), createNewIngredient);
+router.patch('/:id', requireRole(ROLES.ADMIN), updateExistingIngredient);
+router.delete('/:id', requireRole(ROLES.ADMIN), deleteExistingIngredient);
 
 export default router;

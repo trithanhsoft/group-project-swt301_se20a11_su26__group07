@@ -9,17 +9,19 @@ import {
   createImportTransaction,
   getStockTransactions,
   getForecast,
+  createDiscardTransaction,
 } from './stock.controller.js';
 
 const router = Router();
 
-router.use(requireAuth, requireRole(ROLES.ADMIN));
+router.use(requireAuth);
 
-router.post('/import', createImportTransaction);
-router.post('/import/batch', createBatchImportTransaction);
-router.post('/adjust', createAdjustTransaction);
-router.post('/count/daily', createDailyStockCount);
-router.get('/transactions', getStockTransactions);
-router.get('/forecast', getForecast);
+router.post('/import', requireRole(ROLES.ADMIN, ROLES.STAFF), createImportTransaction);
+router.post('/import/batch', requireRole(ROLES.ADMIN, ROLES.STAFF), createBatchImportTransaction);
+router.post('/adjust', requireRole(ROLES.ADMIN, ROLES.STAFF), createAdjustTransaction);
+router.post('/count/daily', requireRole(ROLES.ADMIN, ROLES.STAFF), createDailyStockCount);
+router.post('/discard', requireRole(ROLES.ADMIN, ROLES.STAFF), createDiscardTransaction);
+router.get('/transactions', requireRole(ROLES.ADMIN), getStockTransactions);
+router.get('/forecast', requireRole(ROLES.ADMIN), getForecast);
 
 export default router;

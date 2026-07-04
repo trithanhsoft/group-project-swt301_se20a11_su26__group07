@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Coffee, RotateCcw, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Coffee, RotateCcw, TrendingUp, Trash } from 'lucide-react';
 import { reportApi } from '../api/reportApi.js';
 import { PageHeader } from '../../../components/layout/PageHeader.jsx';
 import { Button } from '../../../components/common/Button.jsx';
@@ -8,12 +8,13 @@ import { StatusBadge } from '../../../components/common/StatusBadge.jsx';
 import { Card } from '../../../components/common/Card.jsx';
 import { Alert } from '../../../components/feedback/Alert.jsx';
 import { formatVND } from '../../../utils/currency.js';
-import { formatDate } from '../../../utils/date.js';
+import { formatDate, formatDateTime } from '../../../utils/date.js';
 
 export function ReportsPage() {
   const [revenueData, setRevenueData] = useState([]);
   const [bestSellers, setBestSellers] = useState([]);
   const [lowStock, setLowStock] = useState([]);
+  const [discards, setDiscards] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -22,19 +23,22 @@ export function ReportsPage() {
     setError('');
 
     try {
-      const [revenueResponse, bestSellingResponse, lowStockResponse] = await Promise.all([
+      const [revenueResponse, bestSellingResponse, lowStockResponse, discardsResponse] = await Promise.all([
         reportApi.getRevenueReport(),
         reportApi.getBestSellingProducts(),
         reportApi.getLowStockIngredients(),
+        reportApi.getDiscardsReport(),
       ]);
 
       setRevenueData(revenueResponse.data || []);
       setBestSellers(bestSellingResponse.data || []);
       setLowStock(lowStockResponse.data || []);
+      setDiscards(discardsResponse.data || []);
     } catch (loadError) {
       setRevenueData([]);
       setBestSellers([]);
       setLowStock([]);
+      setDiscards([]);
       setError(loadError.message || 'Không tải được dữ liệu báo cáo.');
     } finally {
       setIsLoading(false);
@@ -42,7 +46,9 @@ export function ReportsPage() {
   };
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     void loadReportsData();
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   const totalRevenueSum = revenueData.reduce(
@@ -111,6 +117,41 @@ export function ReportsPage() {
     },
   ];
 
+  const discardHeaders = [
+    {
+      key: 'createdAt',
+      label: 'Thời gian',
+      style: { width: '180px', whiteSpace: 'nowrap' },
+      render: (row) => formatDateTime(row.createdAt),
+    },
+    {
+      key: 'ingredientName',
+      label: 'Nguyên liệu hao phí',
+      style: { minWidth: '180px' },
+      render: (row) => <strong style={{ color: 'var(--color-primary)' }}>{row.ingredientName}</strong>,
+    },
+    {
+      key: 'quantity',
+      label: 'Lượng hủy',
+      style: { width: '120px', textAlign: 'right', whiteSpace: 'nowrap' },
+      render: (row) => (
+        <strong style={{ color: 'var(--color-error)' }}>
+          -{row.quantity} {row.unit}
+        </strong>
+      ),
+    },
+    {
+      key: 'creatorName',
+      label: 'Người thực hiện',
+      style: { width: '150px' },
+    },
+    {
+      key: 'note',
+      label: 'Chi tiết hủy hàng',
+      render: (row) => (row.note || '').replace('[HỦY HÀNG] ', ''),
+    },
+  ];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <PageHeader
@@ -165,6 +206,19 @@ export function ReportsPage() {
             borderLeft:
               lowStock.length > 0
                 ? '4px solid var(--color-error)'
+                : '1px solid var(--color-outline-variant)',
+          }}
+        />
+        <Card
+          title="Hao hụt & Hủy hàng"
+          value={`${discards.length} lượt`}
+          subtext="Số lần ghi nhận hủy nguyên liệu/thành phẩm"
+          icon={<Trash size={24} />}
+          loading={isLoading}
+          style={{
+            borderLeft:
+              discards.length > 0
+                ? '4px solid var(--color-warning)'
                 : '1px solid var(--color-outline-variant)',
           }}
         />
@@ -232,6 +286,30 @@ export function ReportsPage() {
           data={lowStock}
           loading={isLoading}
           emptyMessage="Tuyệt vời! Tất cả nguyên liệu đều ở mức tồn kho an toàn."
+        />
+      </div>
+      <div
+        className="card"
+        style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '8px' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Trash size={18} style={{ color: 'var(--color-error)' }} />
+          <h3
+            style={{
+              fontSize: '15px',
+              fontWeight: '700',
+              color: 'var(--color-primary)',
+              margin: 0,
+            }}
+          >
+            Nhật ký hủy hàng & Thất thoát gần nhất
+          </h3>
+        </div>
+        <DataTable
+          headers={discardHeaders}
+          data={discards}
+          loading={isLoading}
+          emptyMessage="Chưa ghi nhận bất kỳ giao dịch hủy hàng hay thất thoát nào."
         />
       </div>
     </div>

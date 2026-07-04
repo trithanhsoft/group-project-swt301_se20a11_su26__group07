@@ -11,29 +11,32 @@ import {
   Users,
   Calendar,
   UserCheck,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { ROUTES } from '../../constants/routes.js';
 import { ROLES } from '../../constants/roles.js';
 
-export function Sidebar({ role }) {
+export function Sidebar({ role, isCollapsed, onToggle }) {
   const location = useLocation();
 
   const adminMenu = [
-    { label: 'Bang dieu khien', path: ROUTES.ADMIN_DASHBOARD, icon: <LayoutDashboard size={18} /> },
-    { label: 'Sản phẩm & Công thức', path: ROUTES.ADMIN_PRODUCTS, icon: <Coffee size={18} /> },
-    { label: 'Quan ly nguyen lieu', path: ROUTES.ADMIN_INGREDIENTS, icon: <Milk size={18} /> },
-    { label: 'Kho hàng & Dự báo', path: ROUTES.ADMIN_STOCK, icon: <Package size={18} /> },
-    { label: 'Bao cao thong ke', path: ROUTES.ADMIN_REPORTS, icon: <BarChart3 size={18} /> },
-    { label: 'Lich lam nhan su', path: '/admin/hr/calendar', icon: <Calendar size={18} /> },
-    { label: 'Quan ly nhan su', path: '/admin/hr', icon: <Users size={18} /> },
-    { label: 'Cham cong nhan su', path: ROUTES.ADMIN_HR_ATTENDANCE, icon: <UserCheck size={18} /> },
+    { label: 'Bang dieu khien', path: ROUTES.ADMIN_DASHBOARD, icon: <LayoutDashboard size={21} /> },
+    { label: 'Sản phẩm & Công thức', path: ROUTES.ADMIN_PRODUCTS, icon: <Coffee size={21} /> },
+    { label: 'Quan ly nguyen lieu', path: ROUTES.ADMIN_INGREDIENTS, icon: <Milk size={21} /> },
+    { label: 'Kho hàng & Dự báo', path: ROUTES.ADMIN_STOCK, icon: <Package size={21} /> },
+    { label: 'Bao cao thong ke', path: ROUTES.ADMIN_REPORTS, icon: <BarChart3 size={21} /> },
+    { label: 'Lich lam nhan su', path: '/admin/hr/calendar', icon: <Calendar size={21} /> },
+    { label: 'Quan ly nhan su', path: '/admin/hr', icon: <Users size={21} /> },
+    { label: 'Cham cong nhan su', path: ROUTES.ADMIN_HR_ATTENDANCE, icon: <UserCheck size={21} /> },
   ];
 
   const staffMenu = [
-    { label: 'Ban hang (POS)', path: ROUTES.STAFF_POS, icon: <ShoppingCart size={18} /> },
-    { label: 'KDS / Bep', path: ROUTES.STAFF_KDS, icon: <ChefHat size={18} /> },
-    { label: 'Lich su don hang', path: ROUTES.STAFF_ORDERS, icon: <History size={18} /> },
-    { label: 'Nhan su & Lich lam', path: '/staff/hr', icon: <Calendar size={18} /> },
+    { label: 'Ban hang (POS)', path: ROUTES.STAFF_POS, icon: <ShoppingCart size={21} /> },
+    { label: 'KDS / Bep', path: ROUTES.STAFF_KDS, icon: <ChefHat size={21} /> }, // Wait, is ChefHat imported? Let's check!
+    { label: 'Lich su don hang', path: ROUTES.STAFF_ORDERS, icon: <History size={21} /> },
+    { label: 'Nhập kho & Kiểm kê', path: '/staff/stock', icon: <Package size={21} /> },
+    { label: 'Nhan su & Lich lam', path: '/staff/hr', icon: <Calendar size={21} /> },
   ];
 
   const menu = role === ROLES.ADMIN ? adminMenu : staffMenu;
@@ -57,8 +60,8 @@ export function Sidebar({ role }) {
       }
     }
 
-    if (itemPathname === ROUTES.ADMIN_STOCK.split('?')[0]) {
-      if (currentPath.startsWith('/admin/stock')) {
+    if (itemPathname === ROUTES.ADMIN_STOCK.split('?')[0] || itemPathname === '/staff/stock') {
+      if (currentPath.startsWith('/admin/stock') || currentPath.startsWith('/staff/stock')) {
         return true;
       }
     }
@@ -73,10 +76,10 @@ export function Sidebar({ role }) {
   };
 
   return (
-    <aside className="app-sidebar">
+    <aside className={`app-sidebar ${isCollapsed ? 'is-collapsed' : ''}`}>
       <div className="sidebar-brand">
         <div className="sidebar-brand-mark">MC</div>
-        <div>
+        <div className="sidebar-brand-text">
           <h1 className="sidebar-brand-title">Mini Coffee</h1>
           <p className="sidebar-brand-subtitle">POS & Inventory</p>
         </div>
@@ -90,13 +93,26 @@ export function Sidebar({ role }) {
               key={item.path}
               to={item.path}
               className={`sidebar-nav-link${isActive ? ' is-active' : ''}`}
+              data-tooltip={item.label}
             >
               {item.icon}
-              <span style={{ fontSize: '14px' }}>{item.label}</span>
+              <span className="sidebar-nav-link-text">{item.label}</span>
             </NavLink>
           );
         })}
       </nav>
+
+      <div className="sidebar-toggle-container">
+        <button
+          className="sidebar-toggle-btn"
+          onClick={onToggle}
+          type="button"
+          data-tooltip={isCollapsed ? "Mở rộng menu" : "Thu gọn menu"}
+        >
+          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          <span className="sidebar-toggle-btn-text">Thu gọn menu</span>
+        </button>
+      </div>
     </aside>
   );
 }

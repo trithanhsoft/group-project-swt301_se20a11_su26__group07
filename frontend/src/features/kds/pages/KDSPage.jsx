@@ -9,7 +9,6 @@ import { Toast } from '../../../components/feedback/Toast.jsx';
 import { formatDateTime } from '../../../utils/date.js';
 
 const AUTO_REFRESH_MS = 15000;
-const KDS_STATUS_NEW = 'NEW';
 const KDS_STATUS_COMPLETED = 'COMPLETED';
 
 function getMinutesElapsed(isoString) {
@@ -266,6 +265,7 @@ export function KDSPage() {
   const [completingOrderId, setCompletingOrderId] = useState('');
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState('success');
+  const [activeTab, setActiveTab] = useState('new'); // 'new' or 'completed'
 
   useEffect(() => {
     let isCancelled = false;
@@ -372,6 +372,35 @@ export function KDSPage() {
       {pageError ? <Alert type="error" message={pageError} onClose={() => setPageError('')} /> : null}
       {actionError ? <Alert type="error" message={actionError} onClose={() => setActionError('')} /> : null}
 
+      {/* Tab Navigation */}
+      <div
+        className="tab-container"
+        style={{
+          display: 'flex',
+          gap: '8px',
+          marginBottom: 'var(--spacing-xs)',
+          borderBottom: '1px solid var(--color-surface-container-high)',
+          paddingBottom: '8px',
+        }}
+      >
+        <button
+          onClick={() => setActiveTab('new')}
+          className={`btn ${activeTab === 'new' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <ChefHat size={18} />
+          Đơn mới chờ làm ({newOrders.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('completed')}
+          className={`btn ${activeTab === 'completed' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <CheckCircle2 size={18} />
+          Đã hoàn thành ({completedOrders.length})
+        </button>
+      </div>
+
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>
           <div className="spinner" style={{ margin: '0 auto 12px' }}></div>
@@ -379,51 +408,54 @@ export function KDSPage() {
             Dang tai man hinh KDS...
           </p>
         </div>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-            gap: 'var(--spacing-lg)',
-            alignItems: 'start',
-          }}
+      ) : activeTab === 'new' ? (
+        <KdsColumn
+          title="Don moi"
+          description="Cac don da thanh toan va dang cho bep thuc hien."
+          orders={newOrders}
+          emptyMessage="Khong co don moi nao dang cho xu ly."
         >
-          <KdsColumn
-            title="Don moi"
-            description="Cac don da thanh toan va dang cho bep thuc hien."
-            orders={newOrders}
-            emptyMessage="Khong co don moi nao dang cho xu ly."
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+              gap: '16px',
+            }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {newOrders.map((order) => (
-                <KdsOrderCard
-                  key={order.id}
-                  order={order}
-                  onComplete={handleCompleteOrder}
-                  isCompleting={completingOrderId === order.id}
-                />
-              ))}
-            </div>
-          </KdsColumn>
-
-          <KdsColumn
-            title="Da hoan thanh"
-            description="Cac don bep da xu ly xong, sap xep moi nhat len tren."
-            orders={completedOrders}
-            emptyMessage="Chua co don nao duoc danh dau hoan thanh."
+            {newOrders.map((order) => (
+              <KdsOrderCard
+                key={order.id}
+                order={order}
+                onComplete={handleCompleteOrder}
+                isCompleting={completingOrderId === order.id}
+              />
+            ))}
+          </div>
+        </KdsColumn>
+      ) : (
+        <KdsColumn
+          title="Da hoan thanh"
+          description="Cac don bep da xu ly xong, sap xep moi nhat len tren."
+          orders={completedOrders}
+          emptyMessage="Chua co don nao duoc danh dau hoan thanh."
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+              gap: '16px',
+            }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {completedOrders.map((order) => (
-                <KdsOrderCard
-                  key={order.id}
-                  order={order}
-                  onComplete={handleCompleteOrder}
-                  isCompleting={false}
-                />
-              ))}
-            </div>
-          </KdsColumn>
-        </div>
+            {completedOrders.map((order) => (
+              <KdsOrderCard
+                key={order.id}
+                order={order}
+                onComplete={handleCompleteOrder}
+                isCompleting={false}
+              />
+            ))}
+          </div>
+        </KdsColumn>
       )}
 
       <div

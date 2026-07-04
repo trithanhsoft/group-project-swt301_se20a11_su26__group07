@@ -4,6 +4,7 @@ import {
   listBestSellingProducts,
   listLowStockIngredients,
   listRevenueReport,
+  listDiscardReport,
 } from './report.service.js';
 
 export const getRevenueReport = asyncHandler(async (req, res) => {
@@ -30,5 +31,14 @@ export const getLowStockIngredientsReport = asyncHandler(async (req, res) => {
   return sendSuccess(res, {
     message: 'Low-stock ingredients report loaded successfully.',
     data: ingredients,
+  });
+});
+
+export const getDiscardsReport = asyncHandler(async (req, res) => {
+  const discards = await listDiscardReport(req.query);
+
+  return sendSuccess(res, {
+    message: 'Discard report loaded successfully.',
+    data: discards,
   });
 });

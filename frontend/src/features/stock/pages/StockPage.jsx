@@ -13,15 +13,21 @@ import {
   CheckCircle2,
   PackageOpen,
   RotateCcw,
+  Trash,
 } from 'lucide-react';
 import { stockApi } from '../api/stockApi.js';
 import { ingredientApi } from '../../ingredients/api/ingredientApi.js';
+import { productApi } from '../../products/api/productApi.js';
+import { useAuth } from '../../../app/providers/AuthProvider.jsx';
+import { ROLES } from '../../../constants/roles.js';
 import { PageHeader } from '../../../components/layout/PageHeader.jsx';
 import { Button } from '../../../components/common/Button.jsx';
 import { Alert } from '../../../components/feedback/Alert.jsx';
 import { Toast } from '../../../components/feedback/Toast.jsx';
+import { ConfirmDialog } from '../../../components/feedback/ConfirmDialog.jsx';
 import { TextInput } from '../../../components/forms/TextInput.jsx';
 import { TextareaInput } from '../../../components/forms/TextareaInput.jsx';
+import { SelectInput } from '../../../components/forms/SelectInput.jsx';
 import { CompactCode, buildCompactCode } from '../../../components/common/CompactCode.jsx';
 import { DataTable } from '../../../components/common/DataTable.jsx';
 import { StatusBadge } from '../../../components/common/StatusBadge.jsx';
@@ -60,7 +66,7 @@ function createCountDraft(ingredients) {
     ingredients.map((ingredient) => [
       ingredient.id,
       {
-        actualStock: String(ingredient.currentStock ?? 0),
+        actualStock: '',
         note: '',
       },
     ]),
@@ -91,6 +97,20 @@ function buildInputStyle(hasError) {
 }
 
 function getTransactionBadge(row) {
+  if (row.note && row.note.startsWith('[HỦY HÀNG] Hủy nguyên liệu')) {
+    return {
+      status: 'WARNING',
+      label: 'Hủy nguyên liệu',
+    };
+  }
+
+  if (row.note && row.note.startsWith('[HỦY HÀNG] Hủy thành phẩm')) {
+    return {
+      status: 'ERROR',
+      label: 'Hủy thành phẩm',
+    };
+  }
+
   if (row.type === STOCK_TRANSACTION_TYPES.ORDER_DEDUCT) {
     return {
       status: 'ERROR',
@@ -124,6 +144,7 @@ function formatStockDelta(value) {
 }
 
 export function StockPage() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'adjust';
 
@@ -134,6 +155,160 @@ export function StockPage() {
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState('success');
   const [submitError, setSubmitError] = useState('');
+
+  // Confirm Dialog states
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  // ------------------ TAB 4: DISCARD (HỦY HÀNG & THẤT THOÁT) ------------------
+  const [discardMode, setDiscardMode] = useState('INGREDIENT'); // 'INGREDIENT' or 'PRODUCT'
+  const [discardIngId, setDiscardIngId] = useState('');
+  const [discardProductId, setDiscardProductId] = useState('');
+  const [discardQty, setDiscardQty] = useState('');
+  const [discardNote, setDiscardNote] = useState('');
+  const [products, setProducts] = useState([]);
+  const [isProductsLoading, setIsProductsLoading] = useState(false);
+  const [discardError, setDiscardError] = useState('');
+
+  const fetchProducts = async () => {
+    try {
+      setIsProductsLoading(true);
+      const response = await productApi.getProducts();
+      setProducts(response.data.products || []);
+    } catch (err) {
+      setProducts([]);
+      console.error('Failed to load products for discard:', err);
+    } finally {
+      setIsProductsLoading(false);
+    }
+  };
+
+  const handleDiscardSubmit = async (e) => {
+    e.preventDefault();
+    setDiscardError('');
+
+    const qty = Number(discardQty);
+    const qtyError = validatePositiveNumber(qty, 'Số lượng hủy');
+    if (qtyError) {
+      setDiscardError(qtyError);
+      return;
+    }
+
+    if (discardMode === 'INGREDIENT' && !discardIngId) {
+      setDiscardError('Vui lòng chọn nguyên liệu muốn hủy.');
+      return;
+    }
+
+    if (discardMode === 'PRODUCT') {
+      if (!discardProductId) {
+        setDiscardError('Vui lòng chọn sản phẩm đồ uống muốn hủy.');
+        return;
+      }
+      const prod = products.find((p) => String(p.id) === String(discardProductId));
+      if (prod && !prod.hasRecipe) {
+        setDiscardError(`Sản phẩm "${prod.name}" chưa được thiết lập công thức định lượng nên không thể tính hao phí nguyên liệu.`);
+        return;
+      }
+    }
+
+    const targetName =
+      discardMode === 'INGREDIENT'
+        ? ingredients.find((i) => String(i.id) === String(discardIngId))?.name
+        : products.find((p) => String(p.id) === String(discardProductId))?.name;
+
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Xác nhận hủy hàng',
+      message: `Bạn chắc chắn muốn ghi nhận hủy ${qty} ${
+        discardMode === 'INGREDIENT' ? 'đơn vị' : 'ly/cốc'
+      } "${targetName}" với lý do: "${discardNote || 'Không có lý do'}"?`,
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        setIsSubmitting(true);
+        try {
+          const payload = {
+            quantity: qty,
+            note: discardNote.trim(),
+          };
+          if (discardMode === 'INGREDIENT') {
+            payload.ingredientId = discardIngId;
+          } else {
+            payload.productId = discardProductId;
+          }
+
+          await stockApi.discardStock(payload);
+
+          setToastType('success');
+          setToastMsg('Ghi nhận phiếu hủy hàng và trừ kho thành công.');
+          setDiscardQty('');
+          setDiscardNote('');
+          setDiscardIngId('');
+          setDiscardProductId('');
+          await loadIngredients();
+          if (discardMode === 'PRODUCT') {
+            await fetchProducts();
+          }
+        } catch (apiError) {
+          setDiscardError(apiError.message || 'Lỗi hệ thống khi thực hiện hủy hàng.');
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
+  };
+
+  // Quick Import States
+  const [quickImportData, setQuickImportData] = useState({
+    isOpen: false,
+    ingredientId: '',
+    ingredientName: '',
+    unit: '',
+  });
+  const [quickImportQty, setQuickImportQty] = useState('');
+  const [quickImportNote, setQuickImportNote] = useState('');
+  const [isSubmittingImport, setIsSubmittingImport] = useState(false);
+  const [quickImportError, setQuickImportError] = useState('');
+
+  const handleQuickImportSubmit = async (e) => {
+    e.preventDefault();
+    setQuickImportError('');
+
+    const qty = Number(quickImportQty);
+    const qtyError = validatePositiveNumber(qty, 'Số lượng nhập');
+    if (qtyError) {
+      setQuickImportError(qtyError);
+      return;
+    }
+
+    setIsSubmittingImport(true);
+    try {
+      await stockApi.importStockBatch({
+        note: quickImportNote.trim() || 'Nhập kho nhanh',
+        items: [
+          {
+            ingredientId: quickImportData.ingredientId,
+            quantity: qty,
+            note: 'Nhập nhanh từ cảnh báo dự báo',
+          },
+        ],
+      });
+      setToastType('success');
+      setToastMsg(`Nhập kho thành công cho nguyên liệu ${quickImportData.ingredientName}.`);
+      setQuickImportData({ isOpen: false, ingredientId: '', ingredientName: '', unit: '' });
+      await loadIngredients();
+      if (activeTab === 'forecast') {
+        await fetchForecast();
+      }
+    } catch (err) {
+      setQuickImportError(err.message || 'Lỗi hệ thống khi thực hiện nhập kho nhanh.');
+    } finally {
+      setIsSubmittingImport(false);
+    }
+  };
 
   // ------------------ TAB 1: STOCK ADJUST (KIỂM KÊ & ĐIỀU CHỈNH) ------------------
   const importFileInputRef = useRef(null);
@@ -254,17 +429,29 @@ export function StockPage() {
   };
 
   const clearImportInputs = () => {
-    if (window.confirm('Bạn có chắc muốn xóa tất cả số lượng nhập đang soạn thảo?')) {
-      setImportRows(createImportDraft(ingredients));
-      setImportErrors({});
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Xóa soạn thảo',
+      message: 'Bạn có chắc muốn xóa tất cả số lượng nhập đang soạn thảo?',
+      onConfirm: () => {
+        setImportRows(createImportDraft(ingredients));
+        setImportErrors({});
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   const resetCountInputs = () => {
-    if (window.confirm('Đặt lại tất cả số lượng tồn thực tế bằng số lượng tồn lý thuyết hiện tại?')) {
-      setCountRows(createCountDraft(ingredients));
-      setCountErrors({});
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Đặt lại số lượng',
+      message: 'Đặt lại tất cả số lượng tồn thực tế bằng số lượng tồn lý thuyết hiện tại?',
+      onConfirm: () => {
+        setCountRows(createCountDraft(ingredients));
+        setCountErrors({});
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   const handleImportSubmit = async (event) => {
@@ -293,39 +480,40 @@ export function StockPage() {
       return;
     }
 
-    if (
-      !window.confirm(
-        `Xác nhận ghi nhận nhập ${readyImportRows.length} nguyên liệu với tổng số lượng là ${formatDisplayNumber(totalImportQuantity)}?`
-      )
-    ) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        note: importBatchNote.trim() || undefined,
-        items: readyImportRows.map((ingredient) => {
-          const row = importRows[ingredient.id];
-          return {
-            ingredientId: ingredient.id,
-            quantity: Number(row.quantity),
-            note: row.note.trim() || undefined,
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Xác nhận nhập kho',
+      message: `Xác nhận ghi nhận nhập ${readyImportRows.length} nguyên liệu với tổng số lượng là ${formatDisplayNumber(totalImportQuantity)}?`,
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        setIsSubmitting(true);
+        try {
+          const payload = {
+            note: importBatchNote.trim() || undefined,
+            items: readyImportRows.map((ingredient) => {
+              const row = importRows[ingredient.id];
+              return {
+                ingredientId: ingredient.id,
+                quantity: Number(row.quantity),
+                note: row.note.trim() || undefined,
+              };
+            }),
           };
-        }),
-      };
 
-      await stockApi.submitImportBatch(payload);
+          await stockApi.importStockBatch(payload);
 
-      setToastType('success');
-      setToastMsg('Ghi nhận lô nhập hàng thành công.');
-      setImportBatchNote('');
-      await loadIngredients();
-    } catch (apiError) {
-      setSubmitError(apiError.message || 'Lỗi hệ thống khi gửi lô nhập hàng.');
-    } finally {
-      setIsSubmitting(false);
-    }
+          setToastType('success');
+          setToastMsg('Ghi nhận lô nhập hàng thành công.');
+          setImportBatchNote('');
+          await loadIngredients();
+          if (activeTab === 'forecast') void fetchForecast();
+        } catch (apiError) {
+          setSubmitError(apiError.message || 'Lỗi hệ thống khi gửi lô nhập hàng.');
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   const handleDailyCountSubmit = async (event) => {
@@ -340,8 +528,7 @@ export function StockPage() {
     const nextErrors = {};
     ingredients.forEach((ingredient) => {
       const draft = countRows[ingredient.id];
-      const quantityNum = Number(draft?.actualStock);
-      const validationError = validateNonNegativeNumber(quantityNum);
+      const validationError = validateNonNegativeNumber(draft?.actualStock, 'Tồn thực tế');
 
       if (validationError) {
         nextErrors[ingredient.id] = validationError;
@@ -354,14 +541,51 @@ export function StockPage() {
       return;
     }
 
-    if (changedCountRows.length === 0) {
-      if (
-        !window.confirm(
-          'Tất cả số lượng thực tế khớp hoàn hảo với lý thuyết. Không có chênh lệch nào được ghi nhận. Bạn vẫn muốn lưu chứ?'
-        )
-      ) {
-        return;
+    const doSubmit = async () => {
+      setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+      setIsSubmitting(true);
+      try {
+        const payload = {
+          countDate,
+          note: countBatchNote.trim() || undefined,
+          items: ingredients.map((ingredient) => {
+            const row = countRows[ingredient.id];
+            return {
+              ingredientId: ingredient.id,
+              actualStock: Number(row.actualStock),
+              note: row.note.trim() || undefined,
+            };
+          }),
+        };
+
+        await stockApi.countDailyStock(payload);
+
+        setToastType('success');
+        setToastMsg('Lưu kết quả kiểm kê kho thành công.');
+        setCountBatchNote('');
+        await loadIngredients();
+        if (activeTab === 'forecast') void fetchForecast();
+      } catch (apiError) {
+        setSubmitError(apiError.message || 'Lỗi hệ thống khi gửi phiếu kiểm kê.');
+      } finally {
+        setIsSubmitting(false);
       }
+    };
+
+    if (user?.role === ROLES.STAFF) {
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Xác nhận kiểm kê',
+        message: `Ghi nhận báo cáo kiểm kê ngày ${countDate}?`,
+        onConfirm: doSubmit,
+      });
+    } else if (changedCountRows.length === 0) {
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Xác nhận kiểm kê',
+        message: 'Tất cả số lượng thực tế khớp hoàn hảo với lý thuyết. Không có chênh lệch nào được ghi nhận. Bạn vẫn muốn lưu chứ?',
+        onConfirm: doSubmit,
+      });
     } else {
       const differenceDetails = changedCountRows
         .map((row) => {
@@ -376,40 +600,12 @@ export function StockPage() {
           ? `${differenceDetails}\n  ... và ${changedCountRows.length - 5} nguyên liệu khác.`
           : differenceDetails;
 
-      if (
-        !window.confirm(
-          `Ghi nhận báo cáo kiểm kê ngày ${countDate}?\nDanh sách chênh lệch phát hiện:\n${differenceSummaryText}\n\nTổng chênh lệch là ${formatStockDelta(totalCountDifference)} sản phẩm.`
-        )
-      ) {
-        return;
-      }
-    }
-
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        countDate,
-        note: countBatchNote.trim() || undefined,
-        items: ingredients.map((ingredient) => {
-          const row = countRows[ingredient.id];
-          return {
-            ingredientId: ingredient.id,
-            actualStock: Number(row.actualStock),
-            note: row.note.trim() || undefined,
-          };
-        }),
-      };
-
-      await stockApi.submitDailyCount(payload);
-
-      setToastType('success');
-      setToastMsg('Lưu kết quả kiểm kê kho thành công.');
-      setCountBatchNote('');
-      await loadIngredients();
-    } catch (apiError) {
-      setSubmitError(apiError.message || 'Lỗi hệ thống khi gửi phiếu kiểm kê.');
-    } finally {
-      setIsSubmitting(false);
+      setConfirmDialog({
+        isOpen: true,
+        title: 'Xác nhận kiểm kê',
+        message: `Ghi nhận báo cáo kiểm kê ngày ${countDate}?\n\nDanh sách chênh lệch phát hiện:\n${differenceSummaryText}\n\nTổng chênh lệch là ${formatStockDelta(totalCountDifference)} sản phẩm.`,
+        onConfirm: doSubmit,
+      });
     }
   };
 
@@ -590,6 +786,33 @@ export function StockPage() {
           <span style={{ color: 'var(--color-status-success-text)', fontWeight: '600' }}>Đủ dùng</span>
         ),
     },
+    {
+      key: 'actions',
+      label: 'Nhập nhanh',
+      style: { width: '120px', textAlign: 'right', whiteSpace: 'nowrap' },
+      render: (row) => (
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setQuickImportQty(String(row.suggested_reorder > 0 ? row.suggested_reorder : ''));
+              setQuickImportNote('Nhập nhanh từ dự báo tồn kho');
+              setQuickImportError('');
+              setQuickImportData({
+                isOpen: true,
+                ingredientId: row.ingredient_id,
+                ingredientName: row.name,
+                unit: row.unit,
+              });
+            }}
+            title="Nhập kho nhanh"
+            style={{ color: row.suggested_reorder > 0 ? 'var(--color-error)' : 'var(--color-secondary)', display: 'flex', padding: 0 }}
+          >
+            <PackagePlus size={16} />
+          </button>
+        </div>
+      ),
+    },
   ];
 
   // ------------------ TAB 3: TRANSACTIONS (LỊCH SỬ NHẬP XUẤT) ------------------
@@ -670,6 +893,13 @@ export function StockPage() {
 
   // ------------------ MAIN SWITCH LOAD LOGIC ------------------
   useEffect(() => {
+    if (user && user.role === ROLES.STAFF) {
+      if (activeTab === 'forecast' || activeTab === 'transactions') {
+        setActiveTab('adjust');
+        return;
+      }
+    }
+
     /* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
     if (activeTab === 'forecast') {
       void fetchForecast();
@@ -677,6 +907,9 @@ export function StockPage() {
       void fetchTransactions();
     } else if (activeTab === 'adjust') {
       void loadIngredients();
+    } else if (activeTab === 'discard') {
+      void loadIngredients();
+      void fetchProducts();
     }
     /* eslint-enable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
   }, [activeTab]);
@@ -692,26 +925,30 @@ export function StockPage() {
               <Button variant="secondary" onClick={loadIngredients} disabled={isLoading} icon={<RefreshCw size={16} />}>
                 Làm mới danh sách
               </Button>
-              <Button
-                variant="secondary"
-                onClick={() => handleTemplateDownload(activeMode)}
-                disabled={isLoading}
-                icon={<Download size={16} />}
-              >
-                Tải file mẫu Excel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() =>
-                  activeMode === STOCK_MODES.IMPORT
-                    ? importFileInputRef.current?.click()
-                    : countFileInputRef.current?.click()
-                }
-                disabled={isLoading || isImportingFile}
-                icon={<Upload size={16} />}
-              >
-                Nạp số liệu từ file Excel
-              </Button>
+              {user?.role !== ROLES.STAFF && (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleTemplateDownload(activeMode)}
+                    disabled={isLoading}
+                    icon={<Download size={16} />}
+                  >
+                    Tải file mẫu Excel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() =>
+                      activeMode === STOCK_MODES.IMPORT
+                        ? importFileInputRef.current?.click()
+                        : countFileInputRef.current?.click()
+                    }
+                    disabled={isLoading || isImportingFile}
+                    icon={<Upload size={16} />}
+                  >
+                    Nạp số liệu từ file Excel
+                  </Button>
+                </>
+              )}
             </>
           ) : activeTab === 'forecast' ? (
             <Button variant="secondary" onClick={fetchForecast} disabled={isForecastLoading} icon={<RotateCcw size={16} />}>
@@ -748,21 +985,33 @@ export function StockPage() {
           <PackageOpen size={18} />
           Kiểm kê & Điều chỉnh kho
         </button>
+        {user?.role === ROLES.ADMIN && (
+          <>
+            <button
+              onClick={() => setActiveTab('forecast')}
+              className={`btn ${activeTab === 'forecast' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <TrendingUp size={18} />
+              Dự báo & Đề xuất nhập
+            </button>
+            <button
+              onClick={() => setActiveTab('transactions')}
+              className={`btn ${activeTab === 'transactions' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <History size={18} />
+              Lịch sử nhập xuất
+            </button>
+          </>
+        )}
         <button
-          onClick={() => setActiveTab('forecast')}
-          className={`btn ${activeTab === 'forecast' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('discard')}
+          className={`btn ${activeTab === 'discard' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
         >
-          <TrendingUp size={18} />
-          Dự báo & Đề xuất nhập
-        </button>
-        <button
-          onClick={() => setActiveTab('transactions')}
-          className={`btn ${activeTab === 'transactions' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-        >
-          <History size={18} />
-          Lịch sử nhập xuất
+          <Trash size={18} />
+          Hủy hàng & Thất thoát
         </button>
       </div>
 
@@ -965,14 +1214,22 @@ export function StockPage() {
                 />
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ fontSize: '14px', color: 'var(--color-secondary)' }}>
-                    Mỗi dòng sẽ so sánh tồn lý thuyết hiện có với tồn thực tế bạn nhập. Những dòng có chênh lệch sẽ được ghi thành điều chỉnh kho để đưa vào báo cáo sau này.
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button variant="secondary" onClick={resetCountInputs} disabled={isLoading || isSubmitting} icon={<Eraser size={16} />}>
-                      Đặt lại theo tồn lý thuyết
-                    </Button>
-                  </div>
+                  {user?.role === ROLES.STAFF ? (
+                    <div style={{ fontSize: '14px', color: 'var(--color-secondary)' }}>
+                      Vui lòng đếm thực tế và nhập chính xác số lượng tồn thực tế của từng nguyên liệu có tại cửa hàng.
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '14px', color: 'var(--color-secondary)' }}>
+                      Mỗi dòng sẽ so sánh tồn lý thuyết hiện có với tồn thực tế bạn nhập. Những dòng có chênh lệch sẽ được ghi thành điều chỉnh kho để đưa vào báo cáo sau này.
+                    </div>
+                  )}
+                  {user?.role !== ROLES.STAFF && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button variant="secondary" onClick={resetCountInputs} disabled={isLoading || isSubmitting} icon={<Eraser size={16} />}>
+                        Đặt lại theo tồn lý thuyết
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -983,34 +1240,34 @@ export function StockPage() {
                       <th style={{ width: '124px' }}>Mã NL</th>
                       <th style={{ minWidth: '240px' }}>Tên nguyên liệu</th>
                       <th style={{ width: '90px', textAlign: 'center' }}>Đơn vị</th>
-                      <th style={{ width: '140px', textAlign: 'right' }}>Tồn lý thuyết</th>
+                      {user?.role !== ROLES.STAFF && <th style={{ width: '140px', textAlign: 'right' }}>Tồn lý thuyết</th>}
                       <th style={{ width: '180px' }}>Tồn thực tế</th>
-                      <th style={{ width: '140px', textAlign: 'right' }}>Chênh lệch</th>
+                      {user?.role !== ROLES.STAFF && <th style={{ width: '140px', textAlign: 'right' }}>Chênh lệch</th>}
                       <th style={{ minWidth: '240px' }}>Ghi chú theo dòng</th>
                     </tr>
                   </thead>
                   <tbody>
                     {isLoading ? (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>
+                        <td colSpan={user?.role === ROLES.STAFF ? 5 : 7} style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>
                           <div className="spinner" style={{ margin: '0 auto 12px' }}></div>
                           <span style={{ color: 'var(--color-secondary)' }}>Đang tải danh sách nguyên liệu...</span>
                         </td>
                       </tr>
                     ) : visibleIngredients.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: 'var(--spacing-xl)', color: 'var(--color-secondary)' }}>
+                        <td colSpan={user?.role === ROLES.STAFF ? 5 : 7} style={{ textAlign: 'center', padding: 'var(--spacing-xl)', color: 'var(--color-secondary)' }}>
                           Không có nguyên liệu nào phù hợp với bộ lọc hiện tại.
                         </td>
                       </tr>
                     ) : (
                       visibleIngredients.map((ingredient) => {
                         const row = countRows[ingredient.id] || {
-                          actualStock: String(ingredient.currentStock ?? 0),
+                          actualStock: '',
                           note: '',
                         };
                         const rowError = countErrors[ingredient.id];
-                        const actualStock = Number(row.actualStock ?? ingredient.currentStock ?? 0);
+                        const actualStock = row.actualStock !== '' ? Number(row.actualStock) : Number(ingredient.currentStock || 0);
                         const differenceQuantity = actualStock - Number(ingredient.currentStock || 0);
 
                         return (
@@ -1027,9 +1284,11 @@ export function StockPage() {
                               </div>
                             </td>
                             <td style={{ textAlign: 'center', fontWeight: '600' }}>{ingredient.unit}</td>
-                            <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                              {formatDisplayNumber(ingredient.currentStock)} {ingredient.unit}
-                            </td>
+                            {user?.role !== ROLES.STAFF && (
+                              <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                                {formatDisplayNumber(ingredient.currentStock)} {ingredient.unit}
+                              </td>
+                            )}
                             <td>
                               <input
                                 type="text"
@@ -1047,23 +1306,25 @@ export function StockPage() {
                                 </div>
                               )}
                             </td>
-                            <td
-                              style={{
-                                textAlign: 'right',
-                                fontWeight: '700',
-                                color:
-                                  differenceQuantity > 0
-                                    ? 'var(--color-tertiary-container)'
-                                    : differenceQuantity < 0
-                                    ? 'var(--color-error)'
-                                    : 'var(--color-secondary)',
-                                fontVariantNumeric: 'tabular-nums',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {differenceQuantity > 0 ? '+' : ''}
-                              {formatDisplayNumber(differenceQuantity)} {ingredient.unit}
-                            </td>
+                            {user?.role !== ROLES.STAFF && (
+                              <td
+                                style={{
+                                  textAlign: 'right',
+                                  fontWeight: '700',
+                                  color:
+                                    differenceQuantity > 0
+                                      ? 'var(--color-tertiary-container)'
+                                      : differenceQuantity < 0
+                                      ? 'var(--color-error)'
+                                      : 'var(--color-secondary)',
+                                  fontVariantNumeric: 'tabular-nums',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {differenceQuantity > 0 ? '+' : ''}
+                                {formatDisplayNumber(differenceQuantity)} {ingredient.unit}
+                              </td>
+                            )}
                             <td>
                               <input
                                 type="text"
@@ -1128,8 +1389,20 @@ export function StockPage() {
                   </p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
                     {criticalItems.map((item) => (
-                      <span
+                      <button
                         key={item.ingredient_id}
+                        type="button"
+                        onClick={() => {
+                          setQuickImportQty(String(item.suggested_reorder > 0 ? item.suggested_reorder : ''));
+                          setQuickImportNote('Nhập nhanh từ cảnh báo nguy cấp');
+                          setQuickImportError('');
+                          setQuickImportData({
+                            isOpen: true,
+                            ingredientId: item.ingredient_id,
+                            ingredientName: item.name,
+                            unit: item.unit,
+                          });
+                        }}
                         style={{
                           fontSize: '11px',
                           padding: '4px 8px',
@@ -1138,10 +1411,15 @@ export function StockPage() {
                           color: 'var(--color-error)',
                           border: '1px solid rgba(239, 68, 68, 0.2)',
                           fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
                         }}
                       >
-                        {item.name}: còn ~{item.days_remaining} ngày
-                      </span>
+                        <PackagePlus size={12} />
+                        {item.name}: còn ~{item.days_remaining} ngày (Nhập nhanh)
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -1199,7 +1477,172 @@ export function StockPage() {
         />
       )}
 
+      {/* ------------------ TAB 4: DISCARD (HỦY HÀNG & THẤT THOÁT) ------------------ */}
+      {activeTab === 'discard' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--spacing-lg)', alignItems: 'flex-start' }}>
+          <div className="card" style={{ flex: '1 1 450px', padding: 'var(--spacing-lg)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+            <h3 style={{ margin: 0, color: 'var(--color-primary)' }}>Tạo phiếu hủy hàng</h3>
+            <p style={{ margin: 0, fontSize: '14px', color: 'var(--color-secondary)' }}>
+              Hao hụt nguyên vật liệu/nguyên liệu hết hạn hoặc sản phẩm lỗi/pha nhầm của cửa hàng.
+            </p>
+
+            {discardError && <Alert type="error" message={discardError} onClose={() => setDiscardError('')} />}
+
+            <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid var(--color-surface-container-high)', paddingBottom: '12px', marginBottom: '8px' }}>
+              <button
+                type="button"
+                className={`btn ${discardMode === 'INGREDIENT' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '6px 12px', fontSize: '13px' }}
+                onClick={() => {
+                  setDiscardMode('INGREDIENT');
+                  setDiscardError('');
+                }}
+              >
+                Hủy nguyên liệu hao hụt
+              </button>
+              <button
+                type="button"
+                className={`btn ${discardMode === 'PRODUCT' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ padding: '6px 12px', fontSize: '13px' }}
+                onClick={() => {
+                  setDiscardMode('PRODUCT');
+                  setDiscardError('');
+                }}
+              >
+                Hủy thành phẩm lỗi/pha sai
+              </button>
+            </div>
+
+            <form onSubmit={handleDiscardSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {discardMode === 'INGREDIENT' ? (
+                <SelectInput
+                  label="Chọn nguyên liệu"
+                  value={discardIngId}
+                  onChange={(e) => setDiscardIngId(e.target.value)}
+                  options={[
+                    { value: '', label: '-- Chọn nguyên liệu --' },
+                    ...ingredients.map((ing) => ({
+                      value: ing.id,
+                      label: `${ing.name} (Tồn hiện tại: ${ing.currentStock} ${ing.unit})`,
+                    })),
+                  ]}
+                  required
+                />
+              ) : (
+                <SelectInput
+                  label="Chọn sản phẩm đồ uống"
+                  value={discardProductId}
+                  onChange={(e) => setDiscardProductId(e.target.value)}
+                  options={[
+                    { value: '', label: '-- Chọn sản phẩm --' },
+                    ...products.map((p) => ({
+                      value: p.id,
+                      label: `${p.name} (${p.hasRecipe ? 'Đã thiết lập công thức' : 'Chưa có công thức'})`,
+                    })),
+                  ]}
+                  required
+                />
+              )}
+
+              <TextInput
+                label={discardMode === 'INGREDIENT' ? "Số lượng nguyên liệu hủy" : "Số lượng sản phẩm hủy (ly/cốc)"}
+                type="number"
+                value={discardQty}
+                onChange={(e) => setDiscardQty(e.target.value)}
+                placeholder="Ví dụ: 2"
+                required
+              />
+
+              <TextInput
+                label="Lý do hủy / Ghi chú"
+                value={discardNote}
+                onChange={(e) => setDiscardNote(e.target.value)}
+                placeholder="Ví dụ: Nguyên liệu mốc, pha nhầm đường..."
+                required
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                <Button type="submit" variant="primary" loading={isSubmitting || isProductsLoading}>
+                  Xác nhận hủy hàng
+                </Button>
+              </div>
+            </form>
+          </div>
+
+          <div style={{ flex: '1 1 450px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="card" style={{ borderLeft: '4px solid var(--color-warning)' }}>
+              <h4 style={{ margin: 0, color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={18} />
+                Lưu ý quan trọng
+              </h4>
+              <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', fontSize: '13px', color: 'var(--color-secondary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <li>
+                  <strong>Hủy nguyên liệu:</strong> Khấu trừ trực tiếp số lượng nguyên liệu lẻ theo đơn vị tính tương ứng.
+                </li>
+                <li>
+                  <strong>Hủy thành phẩm:</strong> Hệ thống bắt buộc sản phẩm đã được cấu hình **Định lượng công thức**. Khi thực hiện, toàn bộ nguyên liệu tương ứng sẽ tự động bị trừ khỏi kho.
+                </li>
+                <li>
+                  Nếu kho hiện tại của một hoặc nhiều nguyên liệu không đủ để phục vụ số lượng sản phẩm hủy, hệ thống sẽ từ chối thao tác và hiển thị lỗi cảnh báo.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Toast message={toastMsg} type={toastType} onClose={() => setToastMsg('')} />
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {quickImportData.isOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '400px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+            <h3 style={{ margin: 0, color: 'var(--color-primary)' }}>Nhập kho nhanh</h3>
+            <p style={{ margin: 0, fontSize: '14px', color: 'var(--color-secondary)' }}>
+              Nguyên liệu: <strong>{quickImportData.ingredientName}</strong>
+            </p>
+            {quickImportError && <Alert type="error" message={quickImportError} onClose={() => setQuickImportError('')} />}
+            <form onSubmit={handleQuickImportSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <TextInput
+                label={`Số lượng nhập (${quickImportData.unit})`}
+                type="number"
+                value={quickImportQty}
+                onChange={(e) => setQuickImportQty(e.target.value)}
+                placeholder="Ví dụ: 100"
+                required
+                disabled={isSubmittingImport}
+              />
+              <TextInput
+                label="Ghi chú"
+                value={quickImportNote}
+                onChange={(e) => setQuickImportNote(e.target.value)}
+                placeholder="Ví dụ: Nhập gấp phục vụ ca chiều..."
+                disabled={isSubmittingImport}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setQuickImportData({ isOpen: false, ingredientId: '', ingredientName: '', unit: '' })}
+                  disabled={isSubmittingImport}
+                >
+                  Hủy
+                </Button>
+                <Button type="submit" variant="primary" loading={isSubmittingImport}>
+                  Xác nhận nhập
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

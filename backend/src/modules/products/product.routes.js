@@ -15,12 +15,13 @@ const router = Router();
 
 router.get('/pos/available', requireAuth, requireRole(ROLES.ADMIN, ROLES.STAFF), getPosAvailableProducts);
 
-router.use(requireAuth, requireRole(ROLES.ADMIN));
+router.use(requireAuth);
 
-router.get('/', getProducts);
-router.post('/', createNewProduct);
-router.get('/:id', getProduct);
-router.patch('/:id', updateExistingProduct);
-router.delete('/:id', deleteExistingProduct);
+router.get('/', requireRole(ROLES.ADMIN, ROLES.STAFF), getProducts);
+router.get('/:id', requireRole(ROLES.ADMIN, ROLES.STAFF), getProduct);
+
+router.post('/', requireRole(ROLES.ADMIN), createNewProduct);
+router.patch('/:id', requireRole(ROLES.ADMIN), updateExistingProduct);
+router.delete('/:id', requireRole(ROLES.ADMIN), deleteExistingProduct);
 
 export default router;

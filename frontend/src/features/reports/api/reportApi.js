@@ -9,6 +9,9 @@ export const reportApi = {
   },
   getLowStockIngredients() {
     return apiClient.get('/reports/low-stock-ingredients');
+  },
+  getDiscardsReport() {
+    return apiClient.get('/reports/discards');
   }
 };
 export default reportApi;

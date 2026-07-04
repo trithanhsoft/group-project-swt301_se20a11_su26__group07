@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, ChefHat } from 'lucide-react';
 import { productApi } from '../api/productApi.js';
+import { recipeApi } from '../../recipes/api/recipeApi.js';
 import { PageHeader } from '../../../components/layout/PageHeader.jsx';
 import { Button } from '../../../components/common/Button.jsx';
 import { Alert } from '../../../components/feedback/Alert.jsx';
@@ -37,6 +38,7 @@ export function ProductFormPage() {
   const [toastMsg, setToastMsg] = useState('');
   const [isLoading, setIsLoading] = useState(isEditMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [associatedRecipeId, setAssociatedRecipeId] = useState(null);
 
   const tagSuggestions = useMemo(() => getTagSuggestions(form.tag), [form.tag]);
 
@@ -60,6 +62,16 @@ export function ProductFormPage() {
           status: product.status || PRODUCT_STATUS.ACTIVE,
         });
         setHasRecipe(Boolean(product.hasRecipe));
+
+        // Fetch associated recipe
+        try {
+          const recipeRes = await recipeApi.getRecipeByProductId(id);
+          if (recipeRes.data?.recipe) {
+            setAssociatedRecipeId(recipeRes.data.recipe.id);
+          }
+        } catch {
+          setAssociatedRecipeId(null);
+        }
       } catch (loadError) {
         setSubmitError(loadError.message || 'Không tải được thông tin sản phẩm.');
       } finally {
@@ -137,9 +149,26 @@ export function ProductFormPage() {
             : 'Tạo mới sản phẩm đồ uống để chuẩn bị cho quản lý công thức, POS và bộ lọc theo tag.'
         }
         actions={
-          <Button variant="secondary" onClick={() => navigate(ROUTES.ADMIN_PRODUCTS)} icon={<ArrowLeft size={16} />}>
-            Quay lại danh sách
-          </Button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {isEditMode && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (associatedRecipeId) {
+                    navigate(`/admin/recipes/${associatedRecipeId}/edit`);
+                  } else {
+                    navigate(`/admin/recipes/new?productId=${id}`);
+                  }
+                }}
+                icon={<ChefHat size={16} />}
+              >
+                {associatedRecipeId ? 'Sửa công thức nhanh' : 'Thiết lập công thức nhanh'}
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => navigate(ROUTES.ADMIN_PRODUCTS)} icon={<ArrowLeft size={16} />}>
+              Quay lại danh sách
+            </Button>
+          </div>
         }
       />
 

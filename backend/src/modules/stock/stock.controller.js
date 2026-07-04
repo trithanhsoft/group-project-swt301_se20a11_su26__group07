@@ -7,6 +7,7 @@ import {
   importStockBatch,
   listStockTransactions,
   getStockForecast,
+  discardStock,
 } from './stock.service.js';
 
 export const createImportTransaction = asyncHandler(async (req, res) => {
@@ -65,6 +66,16 @@ export const getForecast = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: 'Stock forecasts loaded successfully.',
+    data,
+  });
+});
+
+export const createDiscardTransaction = asyncHandler(async (req, res) => {
+  const data = await discardStock(req.body, req.user);
+
+  return sendSuccess(res, {
+    message: 'Stock items discarded successfully.',
+    statusCode: 201,
     data,
   });
 });

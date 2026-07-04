@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Save, Trash } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Plus, Save, Trash, Coffee } from 'lucide-react';
 import { recipeApi } from '../api/recipeApi.js';
 import { productApi } from '../../products/api/productApi.js';
 import { ingredientApi } from '../../ingredients/api/ingredientApi.js';
@@ -20,6 +20,8 @@ const EMPTY_RECIPE_ITEM = {
 
 export function RecipeFormPage({ recipeId, onSave, onCancel }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryProductId = searchParams.get('productId');
   const { id: paramId } = useParams();
   const id = recipeId !== undefined ? recipeId : paramId;
   const isEditMode = Boolean(id);
@@ -57,12 +59,14 @@ export function RecipeFormPage({ recipeId, onSave, onCancel }) {
         const loadedIngredients = ingredientsResponse.data.ingredients || [];
         const loadedRecipe = recipeResponse?.data?.recipe || null;
         const currentProductId = loadedRecipe ? String(loadedRecipe.productId) : '';
+        const targetProductId = currentProductId || queryProductId || '';
 
         setIngredients(loadedIngredients);
         setProducts(
           loadedProducts.filter(
             (product) =>
-              !product.hasRecipe || (currentProductId && String(product.id) === currentProductId),
+              !product.hasRecipe ||
+              (targetProductId && String(product.id) === targetProductId),
           ),
         );
 
@@ -75,7 +79,7 @@ export function RecipeFormPage({ recipeId, onSave, onCancel }) {
             })),
           );
         } else {
-          setProductId('');
+          setProductId(queryProductId || '');
           setRecipeItems([EMPTY_RECIPE_ITEM]);
         }
       } catch (loadError) {
@@ -94,7 +98,7 @@ export function RecipeFormPage({ recipeId, onSave, onCancel }) {
     return () => {
       isCancelled = true;
     };
-  }, [id, isEditMode]);
+  }, [id, isEditMode, queryProductId]);
 
   const handleClose = () => {
     if (onCancel) {
@@ -211,9 +215,20 @@ export function RecipeFormPage({ recipeId, onSave, onCancel }) {
         title={isEditMode ? 'Chinh sua cong thuc' : 'Tao cong thuc moi'}
         description="Dinh luong nguyen lieu can cho mot don vi san pham."
         actions={
-          <Button variant="secondary" onClick={handleClose} icon={<ArrowLeft size={16} />}>
-            Quay lai danh sach
-          </Button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {productId && (
+              <Button
+                variant="secondary"
+                onClick={() => navigate(`/admin/products/${productId}/edit`)}
+                icon={<Coffee size={16} />}
+              >
+                Sửa sản phẩm nhanh
+              </Button>
+            )}
+            <Button variant="secondary" onClick={handleClose} icon={<ArrowLeft size={16} />}>
+              Quay lai danh sach
+            </Button>
+          </div>
         }
       />
 
