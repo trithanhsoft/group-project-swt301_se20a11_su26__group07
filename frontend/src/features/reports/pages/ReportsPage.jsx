@@ -170,14 +170,7 @@ export function ReportsPage() {
         />
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 'var(--spacing-lg)',
-          marginTop: '8px',
-        }}
-      >
+      <div className="responsive-grid-2col" style={{ marginTop: '8px' }}>
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <h3
             style={{

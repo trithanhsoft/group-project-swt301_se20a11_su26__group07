@@ -108,7 +108,7 @@ export function OrderDetailPage() {
           <p style={{ color: 'var(--color-secondary)', margin: 0 }}>Dang tai thong tin don hang...</p>
         </div>
       ) : order ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--spacing-lg)', alignItems: 'start' }}>
+        <div className="responsive-split-layout">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
             <div className="card">
               <h3 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-primary)', margin: 0, marginBottom: '16px' }}>

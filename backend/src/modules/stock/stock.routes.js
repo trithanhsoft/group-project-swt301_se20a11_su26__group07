@@ -8,6 +8,7 @@ import {
   createDailyStockCount,
   createImportTransaction,
   getStockTransactions,
+  getForecast,
 } from './stock.controller.js';
 
 const router = Router();
@@ -19,5 +20,6 @@ router.post('/import/batch', createBatchImportTransaction);
 router.post('/adjust', createAdjustTransaction);
 router.post('/count/daily', createDailyStockCount);
 router.get('/transactions', getStockTransactions);
+router.get('/forecast', getForecast);
 
 export default router;

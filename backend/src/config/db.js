@@ -40,6 +40,11 @@ export const pool = new Pool({
   connectionTimeoutMillis: 15000,
 });
 
+pool.on('error', (err) => {
+  console.error('[db] Unexpected error on idle database client:', err.message || err);
+});
+
+
 export async function query(text, params = []) {
   return pool.query(text, params);
 }

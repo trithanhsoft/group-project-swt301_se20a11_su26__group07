@@ -6,6 +6,7 @@ import {
   importStock,
   importStockBatch,
   listStockTransactions,
+  getStockForecast,
 } from './stock.service.js';
 
 export const createImportTransaction = asyncHandler(async (req, res) => {
@@ -56,5 +57,14 @@ export const getStockTransactions = asyncHandler(async (req, res) => {
     data: {
       transactions,
     },
+  });
+});
+
+export const getForecast = asyncHandler(async (req, res) => {
+  const data = await getStockForecast();
+
+  return sendSuccess(res, {
+    message: 'Stock forecasts loaded successfully.',
+    data,
   });
 });

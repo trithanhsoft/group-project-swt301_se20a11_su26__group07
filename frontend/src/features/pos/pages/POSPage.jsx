@@ -652,14 +652,7 @@ export function POSPage() {
         <Alert type="error" message={checkoutError} onClose={() => setCheckoutError('')} />
       )}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '2fr 1fr',
-          gap: 'var(--spacing-lg)',
-          alignItems: 'start',
-        }}
-      >
+      <div className="pos-split-layout">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
           <TextInput
             placeholder="Tìm món nước theo tên..."

@@ -13,6 +13,8 @@ import recipeRoutes from './modules/recipes/recipe.routes.js';
 import reportRoutes from './modules/reports/report.routes.js';
 import stockRoutes from './modules/stock/stock.routes.js';
 import userRoutes from './modules/users/user.routes.js';
+import hrRoutes from './modules/hr/hr.routes.js';
+import attendanceRoutes from './modules/attendance/attendance.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 import { sendSuccess } from './utils/apiResponse.js';
 
@@ -47,6 +49,8 @@ app.use('/api/recipes', recipeRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/hr', hrRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

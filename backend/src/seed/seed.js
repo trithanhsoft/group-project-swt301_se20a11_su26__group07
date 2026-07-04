@@ -47,6 +47,12 @@ const recipeDefinitions = {
   ],
 };
 
+const defaultShifts = [
+  { name: 'Ca Sáng', startTime: '06:00:00', endTime: '12:00:00', hourlyRate: 25000 },
+  { name: 'Ca Chiều', startTime: '12:00:00', endTime: '18:00:00', hourlyRate: 25000 },
+  { name: 'Ca Tối', startTime: '18:00:00', endTime: '23:00:00', hourlyRate: 30000 },
+];
+
 async function upsertUser(user) {
   const passwordHash = await bcrypt.hash(user.password, 10);
   const result = await query(
@@ -176,6 +182,19 @@ async function seed() {
     const product = productMap.get(productName);
     const recipe = await upsertRecipe(product.id, admin.id);
     await replaceRecipeItems(recipe.id, items, ingredientMap);
+  }
+
+  // Seed default shifts
+  const shiftCountRes = await query('select count(*) as count from shifts where deleted_at is null');
+  if (parseInt(shiftCountRes.rows[0].count, 10) === 0) {
+    console.log('Seeding default shifts...');
+    for (const shift of defaultShifts) {
+      await query(
+        `insert into shifts (name, start_time, end_time, hourly_rate)
+         values ($1, $2, $3, $4)`,
+        [shift.name, shift.startTime, shift.endTime, shift.hourlyRate]
+      );
+    }
   }
 
   console.log('Seed completed.');

@@ -141,7 +141,7 @@ export function ProfilePage() {
         description="Quản lý thông tin cá nhân và cập nhật mật khẩu đăng nhập của bạn."
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(260px, 1fr)', gap: 'var(--spacing-lg)' }}>
+      <div className="responsive-split-layout">
         <div className="card">
           <h3 style={{ marginTop: 0, color: 'var(--color-primary)' }}>Thông tin cá nhân</h3>
           {profileError && <Alert type="error" message={profileError} onClose={() => setProfileError('')} />}

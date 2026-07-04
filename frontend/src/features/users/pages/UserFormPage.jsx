@@ -206,7 +206,7 @@ export function UserFormPage() {
 
       {submitError && <Alert type="error" message={submitError} onClose={() => setSubmitError('')} />}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(260px, 1fr)', gap: 'var(--spacing-lg)' }}>
+      <div className="responsive-split-layout">
         <div className="card">
           {isLoading ? (
             <div style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>

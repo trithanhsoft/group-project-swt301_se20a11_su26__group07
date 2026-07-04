@@ -545,3 +545,54 @@ export async function listStockTransactions({
 
   return result.rows.map(toPublicStockTransaction);
 }
+
+export async function getStockForecast() {
+  const result = await query(`
+    SELECT 
+      i.id AS ingredient_id,
+      i.name AS name,
+      i.unit AS unit,
+      i.current_stock::numeric AS current_stock,
+      i.low_stock_threshold::numeric AS low_stock_threshold,
+      COALESCE(SUM(oi.quantity * ri.quantity_required), 0)::numeric AS total_consumed
+    FROM public.ingredients i
+    LEFT JOIN public.recipe_items ri ON ri.ingredient_id = i.id
+    LEFT JOIN public.recipes r ON r.id = ri.recipe_id AND r.deleted_at IS NULL
+    LEFT JOIN public.order_items oi ON oi.product_id = r.product_id
+    LEFT JOIN public.orders o ON o.id = oi.order_id AND o.status = 'SUCCESS' AND o.created_at >= NOW() - INTERVAL '30 days'
+    WHERE i.deleted_at IS NULL
+    GROUP BY i.id, i.name, i.unit, i.current_stock, i.low_stock_threshold
+    ORDER BY i.name ASC
+  `);
+
+  const forecasts = result.rows.map(row => {
+    const currentStock = Number(row.current_stock);
+    const lowStockThreshold = Number(row.low_stock_threshold);
+    const totalConsumed = Number(row.total_consumed);
+    
+    const averageDailyUsage = Math.round((totalConsumed / 30.0) * 100) / 100;
+    const daysRemaining = averageDailyUsage > 0 
+      ? Math.round((currentStock / averageDailyUsage) * 10) / 10 
+      : null;
+      
+    let suggestedReorder = 0;
+    if (daysRemaining !== null && daysRemaining <= 5) {
+      suggestedReorder = Math.max(0, Math.ceil((averageDailyUsage * 14) - currentStock));
+    } else if (currentStock < lowStockThreshold) {
+      suggestedReorder = Math.max(0, Math.ceil((lowStockThreshold * 2) - currentStock));
+    }
+
+    return {
+      ingredient_id: row.ingredient_id,
+      name: row.name,
+      unit: row.unit,
+      current_stock: currentStock,
+      low_stock_threshold: lowStockThreshold,
+      average_daily_usage: averageDailyUsage,
+      days_remaining: daysRemaining,
+      suggested_reorder: suggestedReorder
+    };
+  });
+
+  return forecasts;
+}

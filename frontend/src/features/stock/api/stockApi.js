@@ -39,6 +39,9 @@ export const stockApi = {
   getTransactions(filters = {}) {
     return apiClient.get(`/stock/transactions${buildQueryString(filters)}`);
   },
+  getForecast() {
+    return apiClient.get('/stock/forecast');
+  },
 };
 
 export default stockApi;

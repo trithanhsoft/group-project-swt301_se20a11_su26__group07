@@ -18,9 +18,10 @@ const EMPTY_RECIPE_ITEM = {
   quantity: '',
 };
 
-export function RecipeFormPage() {
+export function RecipeFormPage({ recipeId, onSave, onCancel }) {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id: paramId } = useParams();
+  const id = recipeId !== undefined ? recipeId : paramId;
   const isEditMode = Boolean(id);
 
   const [products, setProducts] = useState([]);
@@ -94,6 +95,14 @@ export function RecipeFormPage() {
       isCancelled = true;
     };
   }, [id, isEditMode]);
+
+  const handleClose = () => {
+    if (onCancel) {
+      onCancel();
+    } else {
+      navigate(ROUTES.ADMIN_RECIPES);
+    }
+  };
 
   const handleAddRow = () => {
     setRecipeItems((previous) => [...previous, { ...EMPTY_RECIPE_ITEM }]);
@@ -180,9 +189,15 @@ export function RecipeFormPage() {
         setToastMsg('Tao cong thuc thanh cong.');
       }
 
-      setTimeout(() => {
-        navigate(ROUTES.ADMIN_RECIPES);
-      }, 900);
+      if (onSave) {
+        setTimeout(() => {
+          onSave();
+        }, 900);
+      } else {
+        setTimeout(() => {
+          navigate(ROUTES.ADMIN_RECIPES);
+        }, 900);
+      }
     } catch (saveError) {
       setSubmitError(saveError.message || 'Luu cong thuc that bai.');
     } finally {
@@ -196,7 +211,7 @@ export function RecipeFormPage() {
         title={isEditMode ? 'Chinh sua cong thuc' : 'Tao cong thuc moi'}
         description="Dinh luong nguyen lieu can cho mot don vi san pham."
         actions={
-          <Button variant="secondary" onClick={() => navigate(ROUTES.ADMIN_RECIPES)} icon={<ArrowLeft size={16} />}>
+          <Button variant="secondary" onClick={handleClose} icon={<ArrowLeft size={16} />}>
             Quay lai danh sach
           </Button>
         }
@@ -211,7 +226,7 @@ export function RecipeFormPage() {
         />
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(260px, 1fr)', gap: 'var(--spacing-lg)' }}>
+      <div className="responsive-split-layout">
         <div className="card">
           {isLoading ? (
             <div style={{ textAlign: 'center', padding: 'var(--spacing-xl)' }}>
@@ -320,7 +335,7 @@ export function RecipeFormPage() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <Button type="button" variant="secondary" onClick={() => navigate(ROUTES.ADMIN_RECIPES)} disabled={isSubmitting}>
+                <Button type="button" variant="secondary" onClick={handleClose} disabled={isSubmitting}>
                   Huy bo
                 </Button>
                 <Button type="submit" variant="primary" loading={isSubmitting} icon={<Save size={16} />}>
