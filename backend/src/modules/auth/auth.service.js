@@ -3,6 +3,7 @@ import { query } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { signAccessToken } from '../../utils/jwt.js';
 import { toPublicUser } from '../../utils/user.js';
+import { mailSender } from '../../config/mail.js';
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -180,6 +181,107 @@ export async function changeCurrentUserPassword(userId, { currentPassword, newPa
          updated_at = now()
      where id = $2`,
     [newPasswordHash, userId],
+  );
+
+  return { success: true };
+}
+
+export async function requestPasswordReset(email) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedEmail) {
+    throw new ApiError(400, 'Email is required.');
+  }
+
+  if (!validateEmail(normalizedEmail)) {
+    throw new ApiError(400, 'Email format is invalid.');
+  }
+
+  const result = await query(
+    `select id, username, status
+     from app_users
+     where lower(email) = lower($1) and deleted_at is null
+     limit 1`,
+    [normalizedEmail]
+  );
+
+  const user = result.rows[0];
+
+  if (!user) {
+    throw new ApiError(404, 'No account found with this email.');
+  }
+
+  if (user.status !== 'ACTIVE') {
+    throw new ApiError(403, 'This account is inactive.');
+  }
+
+  const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const tokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+  await query(
+    `update app_users
+     set reset_token = $1,
+         reset_token_expires_at = $2,
+         updated_at = now()
+     where id = $3`,
+    [resetCode, tokenExpiresAt, user.id]
+  );
+
+  const subject = '[Mini Coffee POS] Mã xác nhận đặt lại mật khẩu';
+  const text = `Xin chào ${user.username},\n\nMã xác nhận để đặt lại mật khẩu của bạn là: ${resetCode}\nMã này có hiệu lực trong vòng 15 phút.\n\nNếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.`;
+
+  await mailSender.sendEmail({
+    to: normalizedEmail,
+    subject,
+    text,
+  });
+
+  return { success: true };
+}
+
+export async function resetPasswordWithToken({ email, token, newPassword }) {
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedToken = typeof token === 'string' ? token.trim() : '';
+
+  if (!normalizedEmail || !normalizedToken) {
+    throw new ApiError(400, 'Email and verification code are required.');
+  }
+
+  validatePasswordValue(newPassword);
+
+  const result = await query(
+    `select id, reset_token, reset_token_expires_at
+     from app_users
+     where lower(email) = lower($1) and deleted_at is null
+     limit 1`,
+    [normalizedEmail]
+  );
+
+  const user = result.rows[0];
+
+  if (!user) {
+    throw new ApiError(404, 'No account found with this email.');
+  }
+
+  if (!user.reset_token || user.reset_token !== normalizedToken) {
+    throw new ApiError(400, 'Invalid verification code.');
+  }
+
+  const expiresAt = new Date(user.reset_token_expires_at);
+  if (expiresAt < new Date()) {
+    throw new ApiError(400, 'Verification code has expired.');
+  }
+
+  const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+  await query(
+    `update app_users
+     set password_hash = $1,
+         reset_token = null,
+         reset_token_expires_at = null,
+         updated_at = now()
+     where id = $2`,
+    [newPasswordHash, user.id]
   );
 
   return { success: true };

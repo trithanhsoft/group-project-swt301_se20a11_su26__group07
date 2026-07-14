@@ -9,6 +9,7 @@ import { Alert } from '../../../components/feedback/Alert.jsx';
 import { validateUsername, validatePassword } from '../../../utils/validators.js';
 import { ROUTES } from '../../../constants/routes.js';
 import { ROLES } from '../../../constants/roles.js';
+import { authApi } from '../api/authApi.js';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -18,6 +19,13 @@ export function LoginPage() {
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Forgot/Reset password views and states
+  const [view, setView] = useState('login'); // 'login' | 'forgot' | 'reset'
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   // If already logged in, redirect to home
   if (user) {
@@ -73,63 +81,336 @@ export function LoginPage() {
     }
   };
 
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitError('');
+    setSuccessMessage('');
+
+    if (!forgotEmail) {
+      setErrors({ forgotEmail: 'Email là bắt buộc.' });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await authApi.forgotPassword(forgotEmail.trim());
+      setSuccessMessage('Mã xác nhận đã được gửi đến email của bạn.');
+      setView('reset');
+      setErrors({});
+    } catch (err) {
+      setSubmitError(err.message || 'Yêu cầu đặt lại mật khẩu thất bại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitError('');
+    setSuccessMessage('');
+
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      setErrors({ newPassword: passwordError });
+      return;
+    }
+
+    if (!resetCode) {
+      setErrors({ resetCode: 'Mã xác nhận là bắt buộc.' });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await authApi.resetPassword({
+        email: forgotEmail.trim(),
+        token: resetCode.trim(),
+        newPassword,
+      });
+      setSuccessMessage('Đặt lại mật khẩu thành công. Vui lòng đăng nhập với mật khẩu mới.');
+      setView('login');
+      setNewPassword('');
+      setResetCode('');
+      setErrors({});
+    } catch (err) {
+      setSubmitError(err.message || 'Đặt lại mật khẩu thất bại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <AuthLayout>
-      <div style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: '700', color: 'var(--color-primary)', margin: 0 }}>
-          Đăng nhập hệ thống
-        </h2>
-        <p style={{ color: 'var(--color-secondary)', fontSize: '14px', marginTop: '4px', margin: 0 }}>
-          Vui lòng điền thông tin tài khoản của bạn.
-        </p>
-      </div>
-
-      {submitError && <Alert type="error" message={submitError} onClose={() => setSubmitError('')} />}
-
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <TextInput
-          label="Tên đăng nhập"
-          name="username"
-          value={form.username}
-          onChange={handleChange}
-          error={errors.username}
-          placeholder="admin hoặc staff"
-          disabled={isSubmitting}
-          required
-        />
-
-        <PasswordInput
-          label="Mật khẩu"
-          name="password"
-          value={form.password}
-          onChange={handleChange}
-          error={errors.password}
-          placeholder="Nhập mật khẩu của bạn"
-          disabled={isSubmitting}
-          required
-        />
-
-        <div style={{ marginTop: '12px' }}>
-          <Button type="submit" variant="primary" loading={isSubmitting} style={{ width: '100%' }}>
-            Đăng nhập
-          </Button>
-        </div>
-      </form>
-
       <div style={{
-        marginTop: 'var(--spacing-xl)',
-        padding: 'var(--spacing-md)',
-        border: '1px dashed var(--color-outline-variant)',
-        borderRadius: 'var(--radius-default)',
-        backgroundColor: 'var(--color-surface-container-low)'
+        background: 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(20px)',
+        borderRadius: '24px',
+        padding: '40px',
+        boxShadow: '0 24px 64px rgba(38, 52, 38, 0.06), 0 8px 16px rgba(38, 52, 38, 0.02)',
+        border: '1px solid rgba(255, 255, 255, 0.7)',
+        animation: 'fadeInSlide 0.6s ease-out',
+        width: '100%'
       }}>
-        <h4 style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-primary)', margin: 0, marginBottom: '8px' }}>
-          Tài khoản demo có sẵn (Seed)
-        </h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--color-on-surface-variant)' }}>
-          <div><strong>Quản trị (Admin):</strong> admin / Admin123@</div>
-          <div><strong>Nhân viên (Staff):</strong> staff / Staff123@</div>
-        </div>
+        {/* View Titles */}
+        {view === 'login' && (
+          <div style={{ marginBottom: '28px' }}>
+            <h2 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--color-primary)', margin: 0, marginBottom: '8px', lineHeight: '1.2', letterSpacing: '-0.02em' }}>
+              Đăng nhập hệ thống
+            </h2>
+            <p style={{ color: 'var(--color-secondary)', fontSize: '14px', margin: 0, fontWeight: '500' }}>
+              Vui lòng điền thông tin tài khoản của bạn.
+            </p>
+          </div>
+        )}
+
+        {view === 'forgot' && (
+          <div style={{ marginBottom: '28px' }}>
+            <h2 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--color-primary)', margin: 0, marginBottom: '8px', lineHeight: '1.2', letterSpacing: '-0.02em' }}>
+              Quên mật khẩu
+            </h2>
+            <p style={{ color: 'var(--color-secondary)', fontSize: '14px', margin: 0, fontWeight: '500' }}>
+              Nhập email đã đăng ký của bạn để nhận mã xác nhận.
+            </p>
+          </div>
+        )}
+
+        {view === 'reset' && (
+          <div style={{ marginBottom: '28px' }}>
+            <h2 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--color-primary)', margin: 0, marginBottom: '8px', lineHeight: '1.2', letterSpacing: '-0.02em' }}>
+              Đặt lại mật khẩu
+            </h2>
+            <p style={{ color: 'var(--color-secondary)', fontSize: '14px', margin: 0, fontWeight: '500' }}>
+              Nhập mã xác nhận từ email và mật khẩu mới của bạn.
+            </p>
+          </div>
+        )}
+
+        {/* Status Alerts */}
+        {submitError && <Alert type="error" message={submitError} onClose={() => setSubmitError('')} />}
+        {successMessage && <Alert type="success" message={successMessage} onClose={() => setSuccessMessage('')} />}
+
+        {/* View Forms */}
+        {view === 'login' && (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <TextInput
+              label="Tên đăng nhập"
+              name="username"
+              value={form.username}
+              onChange={handleChange}
+              error={errors.username}
+              placeholder="Nhập tên đăng nhập của bạn"
+              disabled={isSubmitting}
+              required
+            />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <PasswordInput
+                label="Mật khẩu"
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                error={errors.password}
+                placeholder="Nhập mật khẩu của bạn"
+                disabled={isSubmitting}
+                required
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView('forgot');
+                    setSubmitError('');
+                    setSuccessMessage('');
+                    setErrors({});
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-primary)',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: 0
+                  }}
+                >
+                  Quên mật khẩu?
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '8px' }}>
+              <Button type="submit" variant="primary" loading={isSubmitting} style={{ 
+                width: '100%', 
+                padding: '12px', 
+                borderRadius: '10px',
+                fontWeight: '700',
+                fontSize: '15px',
+                boxShadow: '0 4px 12px rgba(61, 80, 60, 0.15)',
+                transition: 'all 0.2s ease-in-out'
+              }}>
+                Đăng nhập
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {view === 'forgot' && (
+          <form onSubmit={handleForgotPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <TextInput
+              label="Địa chỉ Email"
+              name="forgotEmail"
+              type="email"
+              value={forgotEmail}
+              onChange={(e) => {
+                setForgotEmail(e.target.value);
+                setSubmitError('');
+              }}
+              error={errors.forgotEmail}
+              placeholder="example@test.com"
+              disabled={isSubmitting}
+              required
+            />
+
+            <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <Button type="submit" variant="primary" loading={isSubmitting} style={{ 
+                width: '100%', 
+                padding: '12px', 
+                borderRadius: '10px',
+                fontWeight: '700',
+                fontSize: '15px',
+                boxShadow: '0 4px 12px rgba(61, 80, 60, 0.15)'
+              }}>
+                Gửi mã xác nhận
+              </Button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  setView('login');
+                  setSubmitError('');
+                  setSuccessMessage('');
+                  setErrors({});
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-secondary)',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textAlign: 'center',
+                  marginTop: '4px'
+                }}
+              >
+                Quay lại đăng nhập
+              </button>
+            </div>
+          </form>
+        )}
+
+        {view === 'reset' && (
+          <form onSubmit={handleResetPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <TextInput
+              label="Email"
+              name="forgotEmail"
+              value={forgotEmail}
+              disabled={true}
+              required
+            />
+
+            <TextInput
+              label="Mã xác nhận (6 chữ số)"
+              name="resetCode"
+              value={resetCode}
+              onChange={(e) => {
+                setResetCode(e.target.value);
+                setSubmitError('');
+              }}
+              error={errors.resetCode}
+              placeholder="Nhập mã 6 chữ số"
+              disabled={isSubmitting}
+              required
+              maxLength={6}
+            />
+
+            <PasswordInput
+              label="Mật khẩu mới"
+              name="newPassword"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                setSubmitError('');
+              }}
+              error={errors.newPassword}
+              placeholder="Nhập mật khẩu mới của bạn"
+              disabled={isSubmitting}
+              required
+            />
+
+            <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <Button type="submit" variant="primary" loading={isSubmitting} style={{ 
+                width: '100%', 
+                padding: '12px', 
+                borderRadius: '10px',
+                fontWeight: '700',
+                fontSize: '15px',
+                boxShadow: '0 4px 12px rgba(61, 80, 60, 0.15)'
+              }}>
+                Đặt lại mật khẩu
+              </Button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  setView('login');
+                  setSubmitError('');
+                  setSuccessMessage('');
+                  setErrors({});
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-secondary)',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textAlign: 'center',
+                  marginTop: '4px'
+                }}
+              >
+                Hủy bỏ
+              </button>
+            </div>
+          </form>
+        )}
+
+        {view === 'login' && (
+          <div style={{
+            marginTop: '28px',
+            padding: '16px',
+            borderRadius: '14px',
+            backgroundColor: 'var(--palette-cream-200)',
+            border: '1px solid var(--palette-cream-400)',
+            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.01)'
+          }}>
+            <h4 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--color-primary)', margin: 0, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Tài khoản trải nghiệm (Demo)
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: 'var(--color-on-surface-variant)', fontWeight: '500' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.03)', paddingBottom: '4px' }}>
+                <span>Quản trị (Admin)</span>
+                <code>admin / Admin123@</code>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Nhân viên (Staff)</span>
+                <code>staff / Staff123@</code>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AuthLayout>
   );

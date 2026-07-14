@@ -13,5 +13,11 @@ export const authApi = {
   changePassword(data) {
     return apiClient.patch('/auth/change-password', data);
   },
+  forgotPassword(email) {
+    return apiClient.post('/auth/forgot-password', { email });
+  },
+  resetPassword({ email, token, newPassword }) {
+    return apiClient.post('/auth/reset-password', { email, token, newPassword });
+  },
 };
 export default authApi;

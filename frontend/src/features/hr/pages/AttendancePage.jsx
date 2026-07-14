@@ -263,7 +263,7 @@ export function AttendancePage() {
             </div>
             
             <a href={checkInURL} target="_blank" rel="noopener noreferrer" style={{ fontSize: '13px', color: 'var(--color-primary)', fontWeight: '600', textDecoration: 'underline' }}>
-              Link check-in thủ công (chỉ cho dev/test)
+              Sử dụng liên kết trực tiếp nếu không thể quét mã QR
             </a>
           </div>
         </div>

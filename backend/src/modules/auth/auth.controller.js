@@ -1,6 +1,6 @@
 import { sendSuccess } from '../../utils/apiResponse.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { changeCurrentUserPassword, loginWithUsernamePassword, updateCurrentUserProfile } from './auth.service.js';
+import { changeCurrentUserPassword, loginWithUsernamePassword, updateCurrentUserProfile, requestPasswordReset, resetPasswordWithToken } from './auth.service.js';
 
 export const login = asyncHandler(async (req, res) => {
   const data = await loginWithUsernamePassword(req.body);
@@ -36,5 +36,23 @@ export const changePassword = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: 'Password changed successfully.',
+  });
+});
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  await requestPasswordReset(email);
+
+  return sendSuccess(res, {
+    message: 'Verification code sent to your email.',
+  });
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { email, token, newPassword } = req.body;
+  await resetPasswordWithToken({ email, token, newPassword });
+
+  return sendSuccess(res, {
+    message: 'Password reset successfully.',
   });
 });

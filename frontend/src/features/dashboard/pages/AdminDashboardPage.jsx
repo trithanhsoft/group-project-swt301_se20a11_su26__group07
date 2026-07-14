@@ -94,7 +94,7 @@ export function AdminDashboardPage() {
           type="warning"
           message={
             <span>
-              {error} (Lưu ý: Nếu chưa kết nối cơ sở dữ liệu Supabase, vui lòng thiết lập lại URL kết nối trong backend .env).
+              {error} (Lưu ý: Vui lòng kiểm tra lại kết nối mạng hoặc liên hệ bộ phận hỗ trợ kỹ thuật để được trợ giúp).
             </span>
           }
         />

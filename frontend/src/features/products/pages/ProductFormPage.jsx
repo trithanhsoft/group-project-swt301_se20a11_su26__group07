@@ -256,10 +256,10 @@ export function ProductFormPage() {
               <strong>Tag:</strong> Dùng để gom nhóm và lọc nhanh theo loại như <code>Cà phê</code>, <code>Espresso</code>, <code>Freeze</code>.
             </div>
             <div>
-              <strong>POS:</strong> Chỉ sản phẩm <code>ACTIVE</code> mới nên xuất hiện trên màn bán hàng.
+              <strong>Trạng thái hiển thị (POS):</strong> Chỉ những sản phẩm ở trạng thái <code>ACTIVE</code> (Hoạt động) mới hiển thị trên thực đơn bán hàng.
             </div>
             <div>
-              <strong>Công thức:</strong> Công thức được quản lý ở màn Recipe, không chỉnh tại đây.
+              <strong>Công thức pha chế:</strong> Định lượng nguyên liệu được thiết lập và quản lý riêng ở phần Quản lý Công thức (Recipe).
             </div>
             {isEditMode && (
               <div>
