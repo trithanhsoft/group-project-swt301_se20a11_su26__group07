@@ -13,8 +13,8 @@ export const authApi = {
   changePassword(data) {
     return apiClient.patch('/auth/change-password', data);
   },
-  forgotPassword(email) {
-    return apiClient.post('/auth/forgot-password', { email });
+  forgotPassword({ email, username }) {
+    return apiClient.post('/auth/forgot-password', { email, username });
   },
   resetPassword({ email, token, newPassword }) {
     return apiClient.post('/auth/reset-password', { email, token, newPassword });

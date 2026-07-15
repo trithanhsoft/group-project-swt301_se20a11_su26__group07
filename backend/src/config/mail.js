@@ -53,7 +53,14 @@ if (isSmtpConfigured) {
 
 export const mailSender = {
   sendEmail: async ({ to, subject, text, html }) => {
-    const from = process.env.SMTP_FROM || '"Mini Coffee POS" <noreply@minicoffeepos.com>';
+    let from = process.env.SMTP_FROM;
+    if (!from && process.env.MAIL_FROM_EMAIL) {
+      const name = process.env.MAIL_FROM_NAME || 'Mini Coffee POS';
+      from = `"${name}" <${process.env.MAIL_FROM_EMAIL}>`;
+    }
+    if (!from) {
+      from = '"Mini Coffee POS" <noreply@minicoffeepos.com>';
+    }
     try {
       const info = await transporter.sendMail({
         from,

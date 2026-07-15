@@ -186,8 +186,9 @@ export async function changeCurrentUserPassword(userId, { currentPassword, newPa
   return { success: true };
 }
 
-export async function requestPasswordReset(email) {
+export async function requestPasswordReset({ email, username }) {
   const normalizedEmail = normalizeEmail(email);
+  const trimmedUsername = typeof username === 'string' ? username.trim() : '';
 
   if (!normalizedEmail) {
     throw new ApiError(400, 'Email is required.');
@@ -195,6 +196,10 @@ export async function requestPasswordReset(email) {
 
   if (!validateEmail(normalizedEmail)) {
     throw new ApiError(400, 'Email format is invalid.');
+  }
+
+  if (!trimmedUsername) {
+    throw new ApiError(400, 'Username is required.');
   }
 
   const result = await query(
@@ -207,8 +212,8 @@ export async function requestPasswordReset(email) {
 
   const user = result.rows[0];
 
-  if (!user) {
-    throw new ApiError(404, 'No account found with this email.');
+  if (!user || user.username.toLowerCase() !== trimmedUsername.toLowerCase()) {
+    throw new ApiError(404, 'No account found with this username and email combination.');
   }
 
   if (user.status !== 'ACTIVE') {
@@ -216,7 +221,8 @@ export async function requestPasswordReset(email) {
   }
 
   const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const tokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+  const resetExpiresMinutes = parseInt(process.env.PASSWORD_RESET_EXPIRES_MINUTES || '15', 10);
+  const tokenExpiresAt = new Date(Date.now() + resetExpiresMinutes * 60 * 1000);
 
   await query(
     `update app_users
@@ -227,13 +233,17 @@ export async function requestPasswordReset(email) {
     [resetCode, tokenExpiresAt, user.id]
   );
 
-  const subject = '[Mini Coffee POS] Mã xác nhận đặt lại mật khẩu';
-  const text = `Xin chào ${user.username},\n\nMã xác nhận để đặt lại mật khẩu của bạn là: ${resetCode}\nMã này có hiệu lực trong vòng 15 phút.\n\nNếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.`;
+  const brandName = process.env.MAIL_FROM_NAME || 'Mini Coffee POS';
+  const subject = `[${brandName}] Mã xác nhận đặt lại mật khẩu`;
+  const text = `Xin chào ${user.username},\n\nMã xác nhận để đặt lại mật khẩu của bạn là: ${resetCode}\nMã này có hiệu lực trong vòng ${resetExpiresMinutes} phút.\n\nNếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.`;
 
-  await mailSender.sendEmail({
+  // Send email asynchronously in the background to avoid blocking the API response (saves 5-7s)
+  mailSender.sendEmail({
     to: normalizedEmail,
     subject,
     text,
+  }).catch((error) => {
+    console.error(`[mail] Failed to send password reset email to ${normalizedEmail}:`, error.message || error);
   });
 
   return { success: true };

@@ -23,6 +23,7 @@ export function LoginPage() {
   // Forgot/Reset password views and states
   const [view, setView] = useState('login'); // 'login' | 'forgot' | 'reset'
   const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotUsername, setForgotUsername] = useState('');
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -86,14 +87,25 @@ export function LoginPage() {
     setSubmitError('');
     setSuccessMessage('');
 
-    if (!forgotEmail) {
-      setErrors({ forgotEmail: 'Email là bắt buộc.' });
+    const newErrors = {};
+    if (!forgotUsername.trim()) {
+      newErrors.forgotUsername = 'Tên đăng nhập là bắt buộc.';
+    }
+    if (!forgotEmail.trim()) {
+      newErrors.forgotEmail = 'Email là bắt buộc.';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await authApi.forgotPassword(forgotEmail.trim());
+      await authApi.forgotPassword({
+        email: forgotEmail.trim(),
+        username: forgotUsername.trim()
+      });
       setSuccessMessage('Mã xác nhận đã được gửi đến email của bạn.');
       setView('reset');
       setErrors({});
@@ -258,6 +270,21 @@ export function LoginPage() {
         {view === 'forgot' && (
           <form onSubmit={handleForgotPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <TextInput
+              label="Tên đăng nhập"
+              name="forgotUsername"
+              type="text"
+              value={forgotUsername}
+              onChange={(e) => {
+                setForgotUsername(e.target.value);
+                setSubmitError('');
+              }}
+              error={errors.forgotUsername}
+              placeholder="admin"
+              disabled={isSubmitting}
+              required
+            />
+
+            <TextInput
               label="Địa chỉ Email"
               name="forgotEmail"
               type="email"
@@ -291,6 +318,8 @@ export function LoginPage() {
                   setSubmitError('');
                   setSuccessMessage('');
                   setErrors({});
+                  setForgotUsername('');
+                  setForgotEmail('');
                 }}
                 style={{
                   background: 'none',
@@ -387,30 +416,6 @@ export function LoginPage() {
           </form>
         )}
 
-        {view === 'login' && (
-          <div style={{
-            marginTop: '28px',
-            padding: '16px',
-            borderRadius: '14px',
-            backgroundColor: 'var(--palette-cream-200)',
-            border: '1px solid var(--palette-cream-400)',
-            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.01)'
-          }}>
-            <h4 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--color-primary)', margin: 0, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Tài khoản trải nghiệm (Demo)
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: 'var(--color-on-surface-variant)', fontWeight: '500' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(0,0,0,0.03)', paddingBottom: '4px' }}>
-                <span>Quản trị (Admin)</span>
-                <code>admin / Admin123@</code>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Nhân viên (Staff)</span>
-                <code>staff / Staff123@</code>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </AuthLayout>
   );

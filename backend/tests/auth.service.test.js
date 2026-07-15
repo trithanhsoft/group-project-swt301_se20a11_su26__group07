@@ -228,28 +228,33 @@ describe('Auth Service Tests', () => {
         .mockResolvedValueOnce({ rows: [mockUserRow] }) // User exists
         .mockResolvedValueOnce({ rows: [] }); // Update token successfully
 
-      const result = await requestPasswordReset('admin@test.com');
+      const result = await requestPasswordReset({ email: 'admin@test.com', username: 'admin' });
 
       expect(query).toHaveBeenCalledTimes(2);
       expect(mailSender.sendEmail).toHaveBeenCalled();
       expect(result.success).toBe(true);
     });
 
-    it('should throw 400 if email is missing or format is invalid', async () => {
-      await expect(requestPasswordReset('')).rejects.toThrow('Email is required.');
-      await expect(requestPasswordReset('invalidemail')).rejects.toThrow('Email format is invalid.');
+    it('should throw 400 if email or username is missing or format is invalid', async () => {
+      await expect(requestPasswordReset({ email: '', username: 'admin' })).rejects.toThrow('Email is required.');
+      await expect(requestPasswordReset({ email: 'invalidemail', username: 'admin' })).rejects.toThrow('Email format is invalid.');
+      await expect(requestPasswordReset({ email: 'admin@test.com', username: '' })).rejects.toThrow('Username is required.');
     });
 
-    it('should throw 404 if email does not match any user', async () => {
+    it('should throw 404 if email does not match any user or username mismatches', async () => {
+      // No user matches email
       query.mockResolvedValueOnce({ rows: [] });
+      await expect(requestPasswordReset({ email: 'notfound@test.com', username: 'admin' })).rejects.toThrow('No account found with this username and email combination.');
 
-      await expect(requestPasswordReset('notfound@test.com')).rejects.toThrow('No account found with this email.');
+      // User email matches, but username is different
+      query.mockResolvedValueOnce({ rows: [{ id: '123', username: 'otheruser', status: 'ACTIVE' }] });
+      await expect(requestPasswordReset({ email: 'admin@test.com', username: 'admin' })).rejects.toThrow('No account found with this username and email combination.');
     });
 
     it('should throw 403 if user account is inactive', async () => {
       query.mockResolvedValueOnce({ rows: [{ id: '123', username: 'inactive_user', status: 'INACTIVE' }] });
 
-      await expect(requestPasswordReset('inactive@test.com')).rejects.toThrow('This account is inactive.');
+      await expect(requestPasswordReset({ email: 'inactive@test.com', username: 'inactive_user' })).rejects.toThrow('This account is inactive.');
     });
   });
 

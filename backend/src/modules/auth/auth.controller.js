@@ -40,8 +40,8 @@ export const changePassword = asyncHandler(async (req, res) => {
 });
 
 export const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-  await requestPasswordReset(email);
+  const { email, username } = req.body;
+  await requestPasswordReset({ email, username });
 
   return sendSuccess(res, {
     message: 'Verification code sent to your email.',
