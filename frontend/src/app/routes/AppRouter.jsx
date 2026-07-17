@@ -16,8 +16,10 @@ import { RecipeFormPage } from '../../features/recipes/pages/RecipeFormPage.jsx'
 import { ReportsPage } from '../../features/reports/pages/ReportsPage.jsx';
 import { KDSPage } from '../../features/kds/pages/KDSPage.jsx';
 import { POSPage } from '../../features/pos/pages/POSPage.jsx';
+import { StaffSessionPage } from '../../features/pos/pages/StaffSessionPage.jsx';
 import { OrderHistoryPage } from '../../features/orders/pages/OrderHistoryPage.jsx';
 import { OrderDetailPage } from '../../features/orders/pages/OrderDetailPage.jsx';
+import { AdminOrderHistoryPage } from '../../features/orders/pages/AdminOrderHistoryPage.jsx';
 import { StaffHRPage } from '../../features/hr/pages/StaffHRPage.jsx';
 import { AdminHRPage } from '../../features/hr/pages/AdminHRPage.jsx';
 import { AdminCalendarPage } from '../../features/hr/pages/AdminCalendarPage.jsx';
@@ -64,6 +66,8 @@ export function AppRouter() {
                 <Route path="hr/calendar" element={<AdminCalendarPage />} />
                 <Route path="hr/attendance" element={<AttendancePage />} />
                 <Route path="hr" element={<AdminHRPage />} />
+                <Route path="orders" element={<AdminOrderHistoryPage />} />
+                <Route path="orders/:id" element={<OrderDetailPage />} />
                 <Route path="*" element={<Navigate to={ROUTES.ADMIN_DASHBOARD} replace />} />
               </Routes>
             </AppLayout>
@@ -78,6 +82,7 @@ export function AppRouter() {
             <AppLayout>
               <Routes>
                 <Route path="pos" element={<POSPage />} />
+                <Route path="session" element={<StaffSessionPage />} />
                 <Route path="kds" element={<KDSPage />} />
                 <Route path="orders" element={<OrderHistoryPage />} />
                 <Route path="orders/:id" element={<OrderDetailPage />} />

@@ -31,7 +31,7 @@ export async function listRevenueReport({ dateFrom, dateTo } = {}) {
   const whereClause = conditions.length ? `where ${conditions.join(' and ')}` : '';
 
   const result = await query(
-    `select order_date, total_orders, total_revenue
+    `select order_date, total_orders, total_revenue, total_refunded
      from v_daily_revenue
      ${whereClause}
      order by order_date desc`,
@@ -42,6 +42,7 @@ export async function listRevenueReport({ dateFrom, dateTo } = {}) {
     orderDate: row.order_date,
     totalOrders: toNumber(row.total_orders),
     totalRevenue: toNumber(row.total_revenue),
+    totalRefunded: toNumber(row.total_refunded),
   }));
 }
 

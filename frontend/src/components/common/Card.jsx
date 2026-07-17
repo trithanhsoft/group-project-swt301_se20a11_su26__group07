@@ -12,7 +12,16 @@ export function Card({ title, value, subtext, icon, loading = false, className =
             {loading ? (
               <span className="headline-lg" style={{ color: 'var(--color-secondary)', margin: '4px 0', display: 'inline-block' }}>...</span>
             ) : (
-              <span className="display-lg" style={{ color: 'var(--color-primary)', fontWeight: '700', margin: '4px 0', display: 'inline-block' }}>
+              <span 
+                className={String(value).length > 6 ? "headline-lg" : "display-lg"} 
+                style={{ 
+                  color: 'var(--color-primary)', 
+                  fontWeight: '700', 
+                  margin: '4px 0', 
+                  display: 'inline-block',
+                  whiteSpace: 'nowrap'
+                }}
+              >
                 {value}
               </span>
             )}

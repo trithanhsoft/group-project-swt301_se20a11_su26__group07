@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Minus, Plus, RotateCcw, ShoppingCart, Trash, X } from 'lucide-react';
 import { posApi } from '../api/posApi.js';
+import { posSessionApi } from '../api/posSessionApi.js';
 import { PageHeader } from '../../../components/layout/PageHeader.jsx';
 import { Button } from '../../../components/common/Button.jsx';
 import { TextInput } from '../../../components/forms/TextInput.jsx';
@@ -131,95 +133,261 @@ function CheckoutConfirmModal({
   items,
   totalAmount,
   amountReceived,
+  setAmountReceived,
+  amountReceivedInputValue,
+  onAmountReceivedChange,
   changeAmount,
   note,
+  setNote,
   loading,
   onCancel,
   onConfirm,
+  paymentMethod,
+  setPaymentMethod,
+  qrMemo,
+  vietqrConfig,
+  canConfirm,
 }) {
   if (!isOpen) {
     return null;
   }
 
   return (
-    <div className="modal-overlay" onClick={loading ? undefined : onCancel}>
+    <div className="modal-overlay" onClick={loading ? undefined : onCancel} style={{ zIndex: 9999 }}>
       <div
         className="modal-content"
-        style={{ maxWidth: '760px' }}
+        style={{ maxWidth: '860px', width: '100%', display: 'flex', flexDirection: 'column' }}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="modal-header">
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--color-primary)', margin: 0 }}>
-            Xác nhận thanh toán
+            Thực hiện thanh toán đơn hàng
           </h3>
           <button
             type="button"
             onClick={onCancel}
             disabled={loading}
-            style={{ color: 'var(--color-secondary)', display: 'flex' }}
-            aria-label="Đóng xác nhận thanh toán"
+            style={{ color: 'var(--color-secondary)', display: 'flex', background: 'none', border: 'none', cursor: 'pointer' }}
+            aria-label="Đóng thanh toán"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '70vh', overflowY: 'auto' }}>
-          <OrderItemsTable items={items} />
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '12px',
-            }}
-          >
-            <div className="card" style={{ padding: '14px' }}>
-              <div style={{ color: 'var(--color-secondary)', fontSize: '12px', marginBottom: '6px' }}>
-                Phương thức thanh toán
-              </div>
-              <strong style={{ color: 'var(--color-primary)' }}>{PAYMENT_METHOD_LABEL}</strong>
+        <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', maxHeight: '75vh', overflowY: 'auto', padding: '20px' }}>
+          
+          {/* COLUMN 1: ORDER ITEMS TABLE */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)', margin: 0, borderBottom: '1px solid var(--color-outline-variant)', paddingBottom: '8px' }}>
+              Danh sách món nước ({items.length})
+            </h4>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <OrderItemsTable items={items} compact={true} />
             </div>
-
-            <div className="card" style={{ padding: '14px' }}>
-              <div style={{ color: 'var(--color-secondary)', fontSize: '12px', marginBottom: '6px' }}>
-                Tổng thanh toán
+            
+            <div style={{ marginTop: 'auto', padding: '14px', borderRadius: 'var(--radius-default)', backgroundColor: 'var(--color-surface-container-low)', border: '1px solid var(--color-outline-variant)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--color-secondary)', marginBottom: '6px' }}>
+                <span>Tạm tính:</span>
+                <span>{formatVND(totalAmount)}</span>
               </div>
-              <strong style={{ color: 'var(--color-tertiary-container)' }}>
-                {formatVND(totalAmount)}
-              </strong>
-            </div>
-
-            <div className="card" style={{ padding: '14px' }}>
-              <div style={{ color: 'var(--color-secondary)', fontSize: '12px', marginBottom: '6px' }}>
-                Khách đưa
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '15px', fontWeight: '700', color: 'var(--color-primary)' }}>
+                <span>Tổng thanh toán:</span>
+                <span style={{ color: 'var(--color-tertiary-container)' }}>{formatVND(totalAmount)}</span>
               </div>
-              <strong>{formatVND(amountReceived)}</strong>
-            </div>
-
-            <div className="card" style={{ padding: '14px' }}>
-              <div style={{ color: 'var(--color-secondary)', fontSize: '12px', marginBottom: '6px' }}>
-                Tiền thối lại
-              </div>
-              <strong>{formatVND(changeAmount)}</strong>
             </div>
           </div>
 
-          {note ? (
-            <div className="card" style={{ padding: '14px' }}>
-              <div style={{ color: 'var(--color-secondary)', fontSize: '12px', marginBottom: '6px' }}>
-                Ghi chú đơn hàng
-              </div>
-              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{note}</div>
+          {/* COLUMN 2: PAYMENT METHOD AND DETAILS */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--color-primary)', margin: 0, borderBottom: '1px solid var(--color-outline-variant)', paddingBottom: '8px' }}>
+              Chọn phương thức thanh toán
+            </h4>
+
+            {/* Payment Method Selector */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('CASH')}
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: 'var(--radius-default)',
+                  border: '2px solid ' + (paymentMethod === 'CASH' ? 'var(--color-primary)' : 'var(--color-outline)'),
+                  backgroundColor: paymentMethod === 'CASH' ? 'var(--color-primary-container)' : 'transparent',
+                  color: paymentMethod === 'CASH' ? 'var(--color-primary)' : 'var(--color-secondary)',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                Tiền mặt
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('QR')}
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: 'var(--radius-default)',
+                  border: '2px solid ' + (paymentMethod === 'QR' ? 'var(--color-primary)' : 'var(--color-outline)'),
+                  backgroundColor: paymentMethod === 'QR' ? 'var(--color-primary-container)' : 'transparent',
+                  color: paymentMethod === 'QR' ? 'var(--color-primary)' : 'var(--color-secondary)',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                VietQR
+              </button>
             </div>
-          ) : null}
+
+            {/* Render details based on Payment Method */}
+            {paymentMethod === 'CASH' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                
+                {/* 2x2 Cash suggestions */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '4px' }}>
+                  {getQuickCashSuggestions(totalAmount).map((quickAmount) => {
+                    const isExact = quickAmount === totalAmount;
+                    return (
+                      <Button
+                        key={quickAmount}
+                        size="sm"
+                        variant={amountReceived === quickAmount ? 'primary' : 'secondary'}
+                        onClick={() => {
+                          setAmountReceived(quickAmount);
+                        }}
+                        disabled={loading || totalAmount <= 0}
+                        style={{ width: '100%', whiteSpace: 'nowrap' }}
+                      >
+                        {isExact ? `Đúng ${formatVND(quickAmount)}` : formatVND(quickAmount)}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <TextInput
+                  label="Tiền mặt khách đưa *"
+                  name="amountReceived"
+                  value={amountReceivedInputValue}
+                  onChange={onAmountReceivedChange}
+                  placeholder="Nhập số tiền khách đưa"
+                  disabled={loading}
+                  required
+                  inputMode="numeric"
+                />
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-default)',
+                    backgroundColor: 'var(--color-surface-container-low)',
+                    border: '1px solid var(--color-outline-variant)'
+                  }}
+                >
+                  <span style={{ color: 'var(--color-secondary)', fontSize: '13px' }}>
+                    Tiền thối lại
+                  </span>
+                  <strong
+                    style={{
+                      color:
+                        changeAmount !== null && changeAmount < 0
+                          ? 'var(--color-error)'
+                          : 'var(--color-tertiary-container)',
+                    }}
+                  >
+                    {changeAmount === null
+                      ? '--'
+                      : changeAmount < 0
+                        ? `Thiếu ${formatVND(Math.abs(changeAmount))}`
+                        : formatVND(changeAmount)}
+                  </strong>
+                </div>
+
+              </div>
+            ) : (
+              // VIETQR DETAILS
+              (() => {
+                const bankId = vietqrConfig?.bankId || 'mbbank';
+                const accountNo = vietqrConfig?.accountNo || '000000000000';
+                const accountName = vietqrConfig?.accountName || 'STALLBOX DEMO';
+                const template = vietqrConfig?.template || 'compact2';
+                const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?amount=${totalAmount}&addInfo=${qrMemo}&accountName=${encodeURIComponent(accountName)}`;
+                return (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '12px',
+                    backgroundColor: 'var(--color-surface-container-low)',
+                    borderRadius: 'var(--radius-default)',
+                    border: '1px dashed var(--color-primary)',
+                  }}>
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      padding: '6px',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}>
+                      <img src={qrUrl} alt="VietQR Code" style={{ width: '150px', height: '150px', objectFit: 'contain' }} />
+                    </div>
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-outline)', paddingBottom: '3px' }}>
+                        <span style={{ color: 'var(--color-secondary)' }}>Nội dung chuyển khoản:</span>
+                        <strong
+                          style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
+                          onClick={() => {
+                            navigator.clipboard.writeText(qrMemo);
+                            alert('Đã sao chép nội dung !');
+                          }}
+                        >
+                          {qrMemo} 📋
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-outline)', paddingBottom: '3px' }}>
+                        <span style={{ color: 'var(--color-secondary)' }}>Ngân hàng:</span>
+                        <strong style={{ color: 'var(--color-primary)' }}>{bankId.toUpperCase()}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '3px' }}>
+                        <span style={{ color: 'var(--color-secondary)' }}>Chủ tài khoản:</span>
+                        <strong style={{ color: 'var(--color-primary)' }}>{accountName}</strong>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+
+            <TextareaInput
+              label="Ghi chú đơn hàng"
+              name="orderNote"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Nhập ghi chú món nước (ví dụ: ít đường, mang đi...)"
+              disabled={loading}
+              rows={2}
+              maxLength={255}
+            />
+
+          </div>
+
         </div>
 
-        <div className="modal-footer">
+        <div className="modal-footer" style={{ padding: '16px 20px', borderTop: '1px solid var(--color-outline-variant)' }}>
           <Button variant="secondary" onClick={onCancel} disabled={loading}>
-            Hủy
+            Hủy bỏ
           </Button>
-          <Button variant="primary" onClick={onConfirm} loading={loading}>
-            Xác nhận thanh toán
+          <Button variant="primary" onClick={onConfirm} loading={loading} disabled={!canConfirm}>
+            {paymentMethod === 'QR' ? 'Xác nhận đã nhận ' : 'Xác nhận thanh toán'}
           </Button>
         </div>
       </div>
@@ -267,7 +435,7 @@ function CheckoutSuccessModal({ isOpen, order, onPrint, onCreateNewOrder }) {
               <div style={{ color: 'var(--color-secondary)', fontSize: '12px', marginBottom: '6px' }}>
                 Phương thức thanh toán
               </div>
-              <strong>{order.paymentMethod === PAYMENT_METHOD ? PAYMENT_METHOD_LABEL : order.paymentMethod}</strong>
+              <strong>{order.paymentMethod === 'CASH' ? 'Tiền mặt' : order.paymentMethod === 'QR' ? ' (VietQR)' : order.paymentMethod}</strong>
             </div>
           </div>
 
@@ -319,6 +487,7 @@ function CheckoutSuccessModal({ isOpen, order, onPrint, onCreateNewOrder }) {
 }
 
 export function POSPage() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -334,6 +503,58 @@ export function POSPage() {
   const [checkoutError, setCheckoutError] = useState('');
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState('success');
+
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [qrMemo, setQrMemo] = useState('');
+  const [vietqrConfig, setVietqrConfig] = useState(null);
+
+  const [activeSession, setActiveSession] = useState(null);
+  const [activeSessionError, setActiveSessionError] = useState('');
+
+  useEffect(() => {
+    const fetchVietQRConfig = async () => {
+      try {
+        const response = await posApi.getVietQRConfig();
+        setVietqrConfig(response.data || null);
+      } catch (err) {
+        console.error('Failed to load VietQR config:', err);
+      }
+    };
+    void fetchVietQRConfig();
+  }, []);
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const checkSession = async () => {
+      setIsSessionLoading(true);
+      try {
+        const response = await posSessionApi.getActiveSession();
+        if (!isCancelled) {
+          const session = response.data.session;
+          setActiveSession(session || null);
+          if (!session) {
+            navigate('/staff/session', { state: { message: 'Vui lòng mở ca làm việc trước khi thực hiện bán hàng.' } });
+          }
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          setPageError(err.message || 'Không thể xác thực ca làm việc.');
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsSessionLoading(false);
+        }
+      }
+    };
+
+    void checkSession();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [reloadNonce, navigate]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -396,12 +617,14 @@ export function POSPage() {
     (sum, item) => sum + getOrderItemUnitPrice(item) * Number(item.quantity || 0),
     0,
   );
+  const effectiveAmountReceived = paymentMethod === 'QR' ? cartTotal : amountReceived;
   const paymentDifference =
-    amountReceived === null ? null : Number(amountReceived) - Number(cartTotal || 0);
-  const isPaymentEnough =
-    amountReceived !== null && Number.isFinite(amountReceived) && paymentDifference >= 0;
+    effectiveAmountReceived === null ? null : Number(effectiveAmountReceived) - Number(cartTotal || 0);
+  const isPaymentEnough = paymentMethod === 'QR'
+    ? true
+    : (effectiveAmountReceived !== null && Number.isFinite(effectiveAmountReceived) && paymentDifference >= 0);
   const paymentValidationMessage =
-    cart.length > 0 && amountReceived !== null && paymentDifference < 0
+    paymentMethod === 'CASH' && cart.length > 0 && effectiveAmountReceived !== null && paymentDifference < 0
       ? `Khách đưa chưa đủ. Còn thiếu ${formatVND(Math.abs(paymentDifference))}.`
       : '';
   const canOpenConfirmModal = cart.length > 0 && isPaymentEnough && !isSubmitting;
@@ -479,15 +702,16 @@ export function POSPage() {
       return;
     }
 
-    if (amountReceived === null) {
-      setCheckoutError('Vui lòng nhập số tiền khách đưa.');
-      return;
-    }
-
-    if (paymentDifference < 0) {
-      setCheckoutError('Số tiền khách đưa chưa đủ để thanh toán đơn hàng.');
-      return;
-    }
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const random = Math.floor(100 + Math.random() * 900);
+    const memo = `STB${yy}${mm}${dd}${hh}${min}${ss}${random}`;
+    setQrMemo(memo);
 
     setCheckoutError('');
     setIsConfirmModalOpen(true);
@@ -502,14 +726,18 @@ export function POSPage() {
     setIsSubmitting(true);
 
     try {
+      const finalNote = paymentMethod === 'QR'
+        ? `[VietQR: ${qrMemo}]${orderNote.trim() ? ' ' + orderNote.trim() : ''}`
+        : orderNote.trim();
+
       const payload = {
         items: cart.map((item) => ({
           productId: item.id,
           quantity: item.quantity,
         })),
-        note: orderNote.trim(),
-        paymentMethod: PAYMENT_METHOD,
-        amountReceived,
+        note: finalNote,
+        paymentMethod: paymentMethod,
+        amountReceived: effectiveAmountReceived,
       };
 
       const response = await posApi.createOrder(payload);
@@ -527,6 +755,8 @@ export function POSPage() {
       setIsSubmitting(false);
     }
   };
+
+  // Ca làm việc được quản lý tại trang riêng /staff/session
 
   const handleCreateNewOrder = () => {
     setCompletedOrder(null);
@@ -625,7 +855,7 @@ export function POSPage() {
           <div class="meta">
             <p><strong>Ma don:</strong> #${escapeHtml(completedOrder.orderCode)}</p>
             <p><strong>Thanh toan luc:</strong> ${escapeHtml(formatDateTime(completedOrder.paidAt || completedOrder.createdAt))}</p>
-            <p><strong>Phuong thuc:</strong> ${escapeHtml(PAYMENT_METHOD_LABEL)}</p>
+            <p><strong>Phuong thuc:</strong> ${escapeHtml(completedOrder.paymentMethod === 'CASH' ? 'Tiền mặt' : completedOrder.paymentMethod === 'QR' ? 'Chuyển khoản (VietQR)' : completedOrder.paymentMethod)}</p>
           </div>
 
           <table>
@@ -668,29 +898,61 @@ export function POSPage() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
-      <PageHeader
-        title="Quầy bán hàng POS"
-        description="Chọn món nước, nhập tiền khách đưa và xác nhận bill trước khi backend tạo đơn."
-        actions={
-          <Button
-            variant="secondary"
-            onClick={() => setReloadNonce((current) => current + 1)}
-            disabled={isLoading || isSubmitting}
-            icon={<RotateCcw size={16} />}
-          >
-            Tải lại
-          </Button>
-        }
-      />
+    <div className="pos-page-wrapper">
+      <div className="pos-page-top">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--color-primary)', margin: 0 }}>Quầy bán hàng POS</h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setReloadNonce((current) => current + 1)}
+              disabled={isLoading || isSubmitting}
+              icon={<RotateCcw size={14} />}
+            >
+              Tải lại
+            </Button>
+            {activeSession && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => navigate('/staff/session')}
+                disabled={isLoading || isSubmitting}
+              >
+                Quản lý ca làm
+              </Button>
+            )}
+          </div>
+        </div>
 
-      {pageError && <Alert type="error" message={pageError} onClose={() => setPageError('')} />}
-      {checkoutError && (
-        <Alert type="error" message={checkoutError} onClose={() => setCheckoutError('')} />
-      )}
+        {pageError && <Alert type="error" message={pageError} onClose={() => setPageError('')} />}
+        {checkoutError && (
+          <Alert type="error" message={checkoutError} onClose={() => setCheckoutError('')} />
+        )}
+
+        {activeSession?.shouldWarnClose && (
+          <div style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            color: '#ef4444',
+            border: '1px solid #ef4444',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            marginBottom: '8px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            fontSize: '13px',
+          }}>
+            ⚠️ Cảnh báo: Ca bán hàng của bạn đã mở liên tục hơn 12 tiếng (realtime UTC+7). Vui lòng kiểm kê két tiền mặt và thực hiện Kết ca bàn giao!
+          </div>
+        )}
+      </div>
 
       <div className="pos-split-layout">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+        <div className="pos-products-column">
           <TextInput
             placeholder="Tìm món nước theo tên..."
             value={searchQuery}
@@ -802,16 +1064,7 @@ export function POSPage() {
           )}
         </div>
 
-        <div
-          className="card"
-          style={{
-            position: 'sticky',
-            top: '80px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-          }}
-        >
+        <div className="card pos-checkout-column">
           <div
             style={{
               display: 'flex',
@@ -834,263 +1087,179 @@ export function POSPage() {
             </h3>
           </div>
 
-          {cart.length === 0 ? (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: '32px 0',
-                color: 'var(--color-secondary)',
-              }}
-            >
-              Giỏ hàng đang trống
-            </div>
-          ) : (
-            <>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              flex: 1,
+              overflowY: 'auto',
+              paddingRight: '4px',
+              justifyContent: cart.length === 0 ? 'center' : 'flex-start',
+            }}
+          >
+            {cart.length === 0 ? (
               <div
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  maxHeight: '320px',
-                  overflowY: 'auto',
-                  paddingRight: '4px',
+                  textAlign: 'center',
+                  padding: '32px 0',
+                  color: 'var(--color-secondary)',
                 }}
               >
-                {cart.map((item) => (
+                Giỏ hàng đang trống
+              </div>
+            ) : (
+              cart.map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    borderBottom: '1px dashed var(--color-outline-variant)',
+                    paddingBottom: '12px',
+                  }}
+                >
                   <div
-                    key={item.id}
                     style={{
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: '10px',
-                      borderBottom: '1px dashed var(--color-outline-variant)',
-                      paddingBottom: '12px',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      alignItems: 'flex-start',
                     }}
                   >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: '12px',
-                        alignItems: 'flex-start',
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            color: 'var(--color-on-surface)',
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {item.name}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: '12px',
-                            color: 'var(--color-secondary)',
-                            marginTop: '4px',
-                          }}
-                        >
-                          Đơn giá: {formatVND(item.price)}
-                        </div>
-                      </div>
-
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
                           fontSize: '13px',
                           fontWeight: '700',
-                          color: 'var(--color-tertiary-container)',
-                          whiteSpace: 'nowrap',
+                          color: 'var(--color-on-surface)',
+                          lineHeight: 1.4,
                         }}
                       >
-                        {formatVND(getOrderItemSubtotal(item))}
+                        {item.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: 'var(--color-secondary)',
+                          marginTop: '4px',
+                        }}
+                      >
+                        Đơn giá: {formatVND(item.price)}
                       </div>
                     </div>
 
                     <div
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        color: 'var(--color-tertiary-container)',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQuantity(item.id, -1)}
-                          disabled={isSubmitting}
-                          style={{ color: 'var(--color-primary)', padding: '2px' }}
-                          title="Giảm số lượng"
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <span
-                          style={{
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            width: '28px',
-                            textAlign: 'center',
-                          }}
-                        >
-                          {item.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateQuantity(item.id, 1)}
-                          disabled={isSubmitting}
-                          style={{ color: 'var(--color-primary)', padding: '2px' }}
-                          title="Tăng số lượng"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFromCart(item.id)}
-                        disabled={isSubmitting}
-                        style={{ color: 'var(--color-error)', display: 'flex', padding: '2px' }}
-                        title="Xóa khỏi giỏ"
-                      >
-                        <Trash size={14} />
-                      </button>
+                      {formatVND(getOrderItemSubtotal(item))}
                     </div>
                   </div>
-                ))}
-              </div>
 
-              <div
-                style={{
-                  borderTop: '1px solid var(--color-outline-variant)',
-                  paddingTop: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    color: 'var(--color-secondary)',
-                  }}
-                >
-                  <span>Tạm tính</span>
-                  <span>{formatVND(cartTotal)}</span>
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: '16px',
-                    fontWeight: '700',
-                    color: 'var(--color-primary)',
-                  }}
-                >
-                  <span>Tổng thanh toán</span>
-                  <span style={{ color: 'var(--color-tertiary-container)' }}>
-                    {formatVND(cartTotal)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="card" style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-secondary)', marginBottom: '6px' }}>
-                    Phương thức thanh toán
-                  </div>
-                  <strong style={{ color: 'var(--color-primary)' }}>{PAYMENT_METHOD_LABEL}</strong>
-                </div>
-
-                <div style={{ display: 'flex', gap: '6px', width: '100%', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '4px' }}>
-                  {getQuickCashSuggestions(cartTotal).map((quickAmount) => {
-                    const isExact = quickAmount === cartTotal;
-                    return (
-                      <Button
-                        key={quickAmount}
-                        size="sm"
-                        variant={amountReceived === quickAmount ? 'primary' : 'secondary'}
-                        onClick={() => handleSetAmountReceived(quickAmount)}
-                        disabled={isSubmitting || cartTotal <= 0}
-                        style={{ flex: 1, whiteSpace: 'nowrap' }}
-                      >
-                        {isExact ? `Đúng ${formatVND(quickAmount)}` : formatVND(quickAmount)}
-                      </Button>
-                    );
-                  })}
-                </div>
-
-                <TextInput
-                  label="Khách đưa"
-                  name="amountReceived"
-                  value={amountReceivedInputValue}
-                  onChange={handleAmountReceivedChange}
-                  placeholder="Nhập số tiền khách đưa"
-                  disabled={isSubmitting}
-                  inputMode="numeric"
-                />
-
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 14px',
-                    borderRadius: 'var(--radius-default)',
-                    backgroundColor: 'var(--color-surface-container-low)',
-                  }}
-                >
-                  <span style={{ color: 'var(--color-secondary)', fontSize: '13px' }}>
-                    Tiền thối lại
-                  </span>
-                  <strong
+                  <div
                     style={{
-                      color:
-                        paymentDifference !== null && paymentDifference < 0
-                          ? 'var(--color-error)'
-                          : 'var(--color-tertiary-container)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
                     }}
                   >
-                    {paymentDifference === null
-                      ? '--'
-                      : paymentDifference < 0
-                        ? `Thiếu ${formatVND(Math.abs(paymentDifference))}`
-                        : formatVND(paymentDifference)}
-                  </strong>
-                </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(item.id, -1)}
+                        disabled={isSubmitting}
+                        style={{ color: 'var(--color-primary)', padding: '2px' }}
+                        title="Giảm số lượng"
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <span
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          width: '28px',
+                          textAlign: 'center',
+                        }}
+                      >
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateQuantity(item.id, 1)}
+                        disabled={isSubmitting}
+                        style={{ color: 'var(--color-primary)', padding: '2px' }}
+                        title="Tăng số lượng"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
 
-                {paymentValidationMessage ? (
-                  <div style={{ color: 'var(--color-error)', fontSize: '12px' }}>
-                    {paymentValidationMessage}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromCart(item.id)}
+                      disabled={isSubmitting}
+                      style={{ color: 'var(--color-error)', display: 'flex', padding: '2px' }}
+                      title="Xóa khỏi giỏ"
+                    >
+                      <Trash size={14} />
+                    </button>
                   </div>
-                ) : null}
+                </div>
+              ))
+            )}
+          </div>
 
-                <TextareaInput
-                  label="Ghi chú đơn hàng"
-                  name="orderNote"
-                  value={orderNote}
-                  onChange={(event) => setOrderNote(event.target.value)}
-                  placeholder="Ví dụ: ít đá, mang đi, khách chờ bàn số 3..."
-                  disabled={isSubmitting}
-                  rows={2}
-                  maxLength={255}
-                />
-              </div>
+          <div
+            style={{
+              borderTop: '1px solid var(--color-outline-variant)',
+              paddingTop: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: 'var(--color-secondary)',
+              }}
+            >
+              <span>Tạm tính</span>
+              <span>{formatVND(cartTotal)}</span>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '16px',
+                fontWeight: '700',
+                color: 'var(--color-primary)',
+              }}
+            >
+              <span>Tổng thanh toán</span>
+              <span style={{ color: 'var(--color-tertiary-container)' }}>
+                {formatVND(cartTotal)}
+              </span>
+            </div>
+          </div>
 
-              <Button
-                variant="primary"
-                onClick={handleOpenConfirmModal}
-                disabled={!canOpenConfirmModal}
-                style={{ width: '100%', padding: '12px' }}
-              >
-                Thanh toán
-              </Button>
-            </>
-          )}
+          <Button
+            variant="primary"
+            onClick={handleOpenConfirmModal}
+            disabled={cart.length === 0 || isSubmitting}
+            style={{ width: '100%', padding: '12px', marginTop: '12px' }}
+          >
+            Tiến hành thanh toán
+          </Button>
         </div>
       </div>
 
@@ -1098,12 +1267,21 @@ export function POSPage() {
         isOpen={isConfirmModalOpen}
         items={cart}
         totalAmount={cartTotal}
-        amountReceived={amountReceived || 0}
-        changeAmount={paymentDifference || 0}
-        note={orderNote.trim()}
+        amountReceived={amountReceived}
+        setAmountReceived={setAmountReceived}
+        amountReceivedInputValue={amountReceivedInputValue}
+        onAmountReceivedChange={handleAmountReceivedChange}
+        changeAmount={paymentDifference}
+        note={orderNote}
+        setNote={setOrderNote}
         loading={isSubmitting}
         onCancel={() => setIsConfirmModalOpen(false)}
         onConfirm={handleConfirmCheckout}
+        paymentMethod={paymentMethod}
+        setPaymentMethod={setPaymentMethod}
+        qrMemo={qrMemo}
+        vietqrConfig={vietqrConfig}
+        canConfirm={canOpenConfirmModal}
       />
 
       <CheckoutSuccessModal
@@ -1112,6 +1290,7 @@ export function POSPage() {
         onPrint={handlePrintBill}
         onCreateNewOrder={handleCreateNewOrder}
       />
+
 
       <Toast message={toastMsg} type={toastType} onClose={() => setToastMsg('')} />
     </div>

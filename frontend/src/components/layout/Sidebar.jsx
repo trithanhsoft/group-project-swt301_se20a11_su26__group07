@@ -26,6 +26,7 @@ export function Sidebar({ role, isCollapsed, onToggle }) {
     { label: 'Quan ly nguyen lieu', path: ROUTES.ADMIN_INGREDIENTS, icon: <Milk size={21} /> },
     { label: 'Kho hàng & Dự báo', path: ROUTES.ADMIN_STOCK, icon: <Package size={21} /> },
     { label: 'Bao cao thong ke', path: ROUTES.ADMIN_REPORTS, icon: <BarChart3 size={21} /> },
+    { label: 'Quản lý đơn hàng', path: ROUTES.ADMIN_ORDERS, icon: <History size={21} /> },
     { label: 'Lich lam nhan su', path: '/admin/hr/calendar', icon: <Calendar size={21} /> },
     { label: 'Quan ly nhan su', path: '/admin/hr', icon: <Users size={21} /> },
     { label: 'Cham cong nhan su', path: ROUTES.ADMIN_HR_ATTENDANCE, icon: <UserCheck size={21} /> },
@@ -33,7 +34,8 @@ export function Sidebar({ role, isCollapsed, onToggle }) {
 
   const staffMenu = [
     { label: 'Ban hang (POS)', path: ROUTES.STAFF_POS, icon: <ShoppingCart size={21} /> },
-    { label: 'KDS / Bep', path: ROUTES.STAFF_KDS, icon: <ChefHat size={21} /> }, // Wait, is ChefHat imported? Let's check!
+    { label: 'Quản lý ca làm', path: ROUTES.STAFF_SESSION, icon: <UserCheck size={21} /> },
+    { label: 'KDS / Bep', path: ROUTES.STAFF_KDS, icon: <ChefHat size={21} /> }, 
     { label: 'Lich su don hang', path: ROUTES.STAFF_ORDERS, icon: <History size={21} /> },
     { label: 'Nhập kho & Kiểm kê', path: '/staff/stock', icon: <Package size={21} /> },
     { label: 'Nhan su & Lich lam', path: '/staff/hr', icon: <Calendar size={21} /> },
@@ -68,6 +70,18 @@ export function Sidebar({ role, isCollapsed, onToggle }) {
 
     if (itemPathname === '/admin/hr') {
       if (currentPath.startsWith('/admin/users') || currentPath.startsWith('/admin/hr')) {
+        return true;
+      }
+    }
+
+    if (itemPathname === ROUTES.ADMIN_ORDERS) {
+      if (currentPath.startsWith('/admin/orders')) {
+        return true;
+      }
+    }
+
+    if (itemPathname === ROUTES.STAFF_ORDERS) {
+      if (currentPath.startsWith('/staff/orders')) {
         return true;
       }
     }

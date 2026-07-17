@@ -383,3 +383,13 @@ export async function getHRCostReport({ start_date, end_date }) {
   );
   return result.rows;
 }
+
+export async function getActiveStaffList() {
+  const result = await query(
+    `SELECT id, username, full_name as "fullName", email 
+     FROM app_users 
+     WHERE role = 'STAFF' AND status = 'ACTIVE' AND deleted_at IS NULL
+     ORDER BY full_name`
+  );
+  return result.rows;
+}

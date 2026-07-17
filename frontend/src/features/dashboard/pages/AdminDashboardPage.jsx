@@ -121,24 +121,22 @@ export function AdminDashboardPage() {
           onClick={() => handleQuickAction(ROUTES.ADMIN_REPORTS)}
         />
         <Card
-          className={`card-hoverable ${summary?.counts?.lowStockIngredients > 0 ? 'pulse-alert' : ''}`}
+          className={`card-hoverable ${summary?.counts?.lowStockIngredients > 0 ? 'pulse-alert card-border-danger' : ''}`}
           title="Nguyên liệu sắp hết"
           value={summary?.counts?.lowStockIngredients || 0}
           subtext="Nguyên liệu dưới hạn định mức"
           icon={<AlertTriangle size={24} />}
           loading={isLoading}
           onClick={() => handleQuickAction(ROUTES.ADMIN_STOCK)}
-          style={{ borderLeft: summary?.counts?.lowStockIngredients > 0 ? '4px solid var(--color-error)' : '1px solid var(--color-outline-variant)' }}
         />
         <Card
-          className={`card-hoverable ${summary?.counts?.pendingRequests > 0 ? 'pulse-alert' : ''}`}
+          className={`card-hoverable ${summary?.counts?.pendingRequests > 0 ? 'pulse-alert card-border-warning' : ''}`}
           title="Yêu cầu chờ duyệt"
           value={summary?.counts?.pendingRequests || 0}
           subtext="Đơn xin nghỉ & đổi ca"
           icon={<Users size={24} />}
           loading={isLoading}
           onClick={() => handleQuickAction('/admin/hr')}
-          style={{ borderLeft: summary?.counts?.pendingRequests > 0 ? '4px solid #f59e0b' : '1px solid var(--color-outline-variant)' }}
         />
         <Card
           className="card-hoverable"

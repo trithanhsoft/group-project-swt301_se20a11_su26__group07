@@ -322,3 +322,11 @@ export const getAdminHRCosts = asyncHandler(async (req, res) => {
     data: { costs },
   });
 });
+
+export const getStaffList = asyncHandler(async (req, res) => {
+  const staff = await hrService.getActiveStaffList();
+  return sendSuccess(res, {
+    message: 'Staff list loaded successfully.',
+    data: { staff },
+  });
+});

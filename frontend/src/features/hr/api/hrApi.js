@@ -61,6 +61,9 @@ export const hrApi = {
   processRequest(id, data) {
     return apiClient.patch(`/hr/requests/${id}`, data);
   },
+  getStaffList() {
+    return apiClient.get('/hr/staff-list');
+  },
 
   // Salary & reports
   getMySalary(params = {}) {

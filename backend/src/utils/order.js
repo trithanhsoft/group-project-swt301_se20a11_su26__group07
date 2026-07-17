@@ -7,6 +7,7 @@ function toPublicOrderItem(row) {
     quantity: Number(row.quantity || 0),
     unitPrice: Number(row.unit_price || 0),
     subtotal: Number(row.subtotal || 0),
+    refundedQuantity: Number(row.refunded_quantity || 0),
     createdAt: row.created_at || null,
   };
 }
@@ -21,6 +22,7 @@ export function toPublicOrder(row, itemRows = []) {
     staffId: row.staff_id,
     staffUsername: row.staff_username || null,
     totalAmount: Number(row.total_amount || 0),
+    refundedAmount: Number(row.refunded_amount || 0),
     paymentMethod: row.payment_method || 'CASH',
     amountReceived:
       row.amount_received === undefined || row.amount_received === null

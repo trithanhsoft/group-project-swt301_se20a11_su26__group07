@@ -19,8 +19,10 @@ export const ROUTES = {
   ADMIN_REPORTS: '/admin/reports',
   ADMIN_HR_ATTENDANCE: '/admin/hr/attendance',
   ADMIN_STOCK_FORECAST: '/admin/stock?tab=forecast',
+  ADMIN_ORDERS: '/admin/orders',
   STAFF_POS: '/staff/pos',
   STAFF_KDS: '/staff/kds',
   STAFF_ORDERS: '/staff/orders',
   STAFF_ORDERS_DETAIL: '/staff/orders/:id',
+  STAFF_SESSION: '/staff/session',
 };

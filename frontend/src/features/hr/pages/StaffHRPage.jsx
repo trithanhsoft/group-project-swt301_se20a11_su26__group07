@@ -10,7 +10,6 @@ import { StatusBadge } from '../../../components/common/StatusBadge.jsx';
 import { formatVND } from '../../../utils/currency.js';
 import { toLocalDateString } from '../../../utils/date.js';
 import { hrApi } from '../api/hrApi.js';
-import { userApi } from '../../users/api/userApi.js';
 import { attendanceApi } from '../api/attendanceApi.js';
 import { Calendar, FileText, DollarSign, Plus, Trash2, Send, UserCheck, Clock, Check } from 'lucide-react';
 
@@ -136,13 +135,13 @@ export function StaffHRPage() {
     setIsLoading(true);
     setError('');
     try {
-      const [reqsRes, usersRes, shiftsRes] = await Promise.all([
+      const [reqsRes, staffRes, shiftsRes] = await Promise.all([
         hrApi.getRequests(),
-        userApi.getUsers({ status: 'ACTIVE' }),
+        hrApi.getStaffList(),
         hrApi.getShifts(),
       ]);
       setRequests(reqsRes.data?.requests || []);
-      setUsers(usersRes.data?.users || []);
+      setUsers(staffRes.data?.staff || []);
       setShifts(shiftsRes.data?.shifts || []);
     } catch (err) {
       setError(err.message || 'Không tải được dữ liệu yêu cầu.');

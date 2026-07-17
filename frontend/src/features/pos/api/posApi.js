@@ -6,6 +6,9 @@ export const posApi = {
   },
   createOrder(orderData) {
     return apiClient.post('/orders', orderData);
+  },
+  getVietQRConfig() {
+    return apiClient.get('/orders/vietqr-config');
   }
 };
 export default posApi;

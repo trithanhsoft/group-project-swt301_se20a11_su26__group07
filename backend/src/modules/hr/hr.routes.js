@@ -17,6 +17,7 @@ import {
   getMySalary,
   getRequests,
   getShifts,
+  getStaffList,
   processExistingRequest,
   updateExistingShift,
 } from './hr.controller.js';
@@ -33,6 +34,7 @@ router.post('/availability', createNewAvailability);
 router.delete('/availability/:id', deleteExistingAvailability);
 router.get('/my-shifts', getAssignedShifts);
 router.get('/my-salary', getMySalary);
+router.get('/staff-list', getStaffList);
 router.get('/requests', getRequests);
 router.post('/requests', createNewRequest);
 

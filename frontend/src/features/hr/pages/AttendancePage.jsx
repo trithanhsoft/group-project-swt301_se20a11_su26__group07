@@ -270,12 +270,10 @@ export function AttendancePage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Filters */}
-          <div className="card" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-end', padding: '16px' }}>
+          <div className="card" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', padding: '16px 16px 0 16px' }}>
             <div style={{ flex: 1, minWidth: '200px' }}>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-secondary)', display: 'block', marginBottom: '6px' }}>
-                Tìm kiếm nhân viên, ca làm...
-              </label>
               <TextInput
+                label="Tìm kiếm nhân viên, ca làm..."
                 placeholder="Nhập tên nhân viên, ca làm..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -283,29 +281,33 @@ export function AttendancePage() {
             </div>
             
             <div style={{ width: '160px' }}>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-secondary)', display: 'block', marginBottom: '6px' }}>
-                Từ ngày
-              </label>
-              <input
-                type="date"
-                className="input-text"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={{ width: '100%' }}
-              />
+              <div className="form-group">
+                <label className="form-label">
+                  Từ ngày
+                </label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  style={{ width: '100%' }}
+                />
+              </div>
             </div>
 
             <div style={{ width: '160px' }}>
-              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-secondary)', display: 'block', marginBottom: '6px' }}>
-                Đến ngày
-              </label>
-              <input
-                type="date"
-                className="input-text"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={{ width: '100%' }}
-              />
+              <div className="form-group">
+                <label className="form-label">
+                  Đến ngày
+                </label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={{ width: '100%' }}
+                />
+              </div>
             </div>
           </div>
 

@@ -7,6 +7,7 @@ import { toPublicOrder } from '../../utils/order.js';
 
 const PAYMENT_METHODS = Object.freeze({
   CASH: 'CASH',
+  QR: 'QR',
 });
 
 function normalizeString(value) {
@@ -53,8 +54,8 @@ function normalizePaymentMethod(value) {
 }
 
 function ensureSupportedPaymentMethod(paymentMethod) {
-  if (paymentMethod !== PAYMENT_METHODS.CASH) {
-    throw new ApiError(400, 'Payment method must be CASH.');
+  if (paymentMethod !== PAYMENT_METHODS.CASH && paymentMethod !== PAYMENT_METHODS.QR) {
+    throw new ApiError(400, 'Payment method must be CASH or QR.');
   }
 }
 
@@ -403,6 +404,7 @@ async function findOrderHeaderByIdForStaff(orderId, staffId) {
             o.staff_id,
             u.username as staff_username,
             o.total_amount,
+            o.refunded_amount,
             o.payment_method,
             o.amount_received,
             o.change_amount,
@@ -418,7 +420,7 @@ async function findOrderHeaderByIdForStaff(orderId, staffId) {
      join app_users u on u.id = o.staff_id
      where o.id = $1
        and o.staff_id = $2
-       and o.status = 'SUCCESS'
+       and o.status in ('SUCCESS', 'PARTIALLY_REFUNDED', 'REFUNDED')
      limit 1`,
     [orderId, staffId],
   );
@@ -439,6 +441,7 @@ async function loadOrderItemRows(orderIds) {
             quantity,
             unit_price,
             subtotal,
+            refunded_quantity,
             created_at
      from order_items
      where order_id in (${buildPlaceholders(orderIds)})
@@ -503,6 +506,18 @@ export async function createOrder(payload, actorUser) {
   try {
     await client.query('begin');
 
+    // Check if there is an active POS session for this staff
+    const activeSessionRes = await client.query(
+      `select id from pos_sessions where staff_id = $1 and status = 'OPEN' limit 1`,
+      [actorUser.id]
+    );
+
+    if (activeSessionRes.rows.length === 0) {
+      throw new ApiError(400, 'Bạn cần mở ca bán hàng trước khi tạo đơn.');
+    }
+
+    const posSessionId = activeSessionRes.rows[0].id;
+
     const orderCode = await generateUniqueOrderCode(client);
     const insertOrderResult = await client.query(
       `insert into orders (
@@ -515,9 +530,10 @@ export async function createOrder(payload, actorUser) {
          paid_at,
          status,
          kds_status,
-         note
+         note,
+         pos_session_id
        )
-       values ($1, $2, $3, $4, $5, $6, now(), 'SUCCESS', $7, $8)
+       values ($1, $2, $3, $4, $5, $6, now(), 'SUCCESS', $7, $8, $9)
        returning id`,
       [
         orderCode,
@@ -528,6 +544,7 @@ export async function createOrder(payload, actorUser) {
         paymentSummary.changeAmount,
         KDS_STATUSES.NEW,
         note || null,
+        posSessionId
       ],
     );
 
@@ -551,7 +568,7 @@ export async function listOrdersForStaff(actorUser, { dateFrom, dateTo } = {}) {
   ensureStaffUser(actorUser);
 
   const params = [actorUser.id];
-  const conditions = ['o.staff_id = $1', `o.status = 'SUCCESS'`];
+  const conditions = ['o.staff_id = $1', "o.status in ('SUCCESS', 'PARTIALLY_REFUNDED', 'REFUNDED')"];
 
   if (dateFrom) {
     params.push(dateFrom);
@@ -569,6 +586,7 @@ export async function listOrdersForStaff(actorUser, { dateFrom, dateTo } = {}) {
             o.staff_id,
             u.username as staff_username,
             o.total_amount,
+            o.refunded_amount,
             o.payment_method,
             o.amount_received,
             o.change_amount,
@@ -603,3 +621,312 @@ export async function getOrderByIdForStaff(orderId, actorUser) {
   const [order] = await buildOrdersWithItems([header]);
   return order;
 }
+
+export async function refundOrderItems(orderId, { refundAll, items, returnToStock, reason } = {}, actorUser) {
+  const normalizedOrderId = normalizeId(orderId, 'Order id');
+  const cleanReason = reason ? String(reason).trim() : '';
+  if (!cleanReason) {
+    throw new ApiError(400, 'Lý do hoàn tiền là bắt buộc.');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+
+    const orderRes = await client.query(
+      `select id, order_code, total_amount, refunded_amount, status, staff_id
+       from orders
+       where id = $1 for update`,
+      [normalizedOrderId]
+    );
+
+    if (orderRes.rows.length === 0) {
+      throw new ApiError(404, 'Không tìm thấy đơn hàng.');
+    }
+
+    const order = orderRes.rows[0];
+
+    if (order.status === 'REFUNDED') {
+      throw new ApiError(400, 'Đơn hàng này đã được hoàn tiền toàn bộ.');
+    }
+
+    const itemsRes = await client.query(
+      `select id, product_id, product_name_snapshot, quantity, unit_price, subtotal, refunded_quantity
+       from order_items
+       where order_id = $1 for update`,
+      [normalizedOrderId]
+    );
+    const orderItems = itemsRes.rows;
+
+    let refundAmountTotal = 0;
+    const itemsToRefund = [];
+
+    if (refundAll) {
+      for (const item of orderItems) {
+        const remainingQty = item.quantity - item.refunded_quantity;
+        if (remainingQty > 0) {
+          refundAmountTotal += remainingQty * Number(item.unit_price);
+          itemsToRefund.push({
+            itemRow: item,
+            quantityToRefund: remainingQty
+          });
+        }
+      }
+    } else {
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new ApiError(400, 'Danh sách món cần hoàn tiền trống.');
+      }
+
+      for (const reqItem of items) {
+        const itemId = normalizeId(reqItem.orderItemId || reqItem.id, 'Item id');
+        const qtyToRefund = ensurePositiveInteger(reqItem.refundQuantity || reqItem.quantity, 'Số lượng hoàn tiền');
+
+        const item = orderItems.find(i => i.id === itemId);
+        if (!item) {
+          throw new ApiError(404, `Không tìm thấy sản phẩm có mã trong đơn hàng.`);
+        }
+
+        const remainingQty = item.quantity - item.refunded_quantity;
+        if (qtyToRefund > remainingQty) {
+          throw new ApiError(400, `Số lượng hoàn tiền cho sản phẩm "${item.product_name_snapshot}" vượt quá số lượng mua thực tế còn lại (tối đa: ${remainingQty}).`);
+        }
+
+        refundAmountTotal += qtyToRefund * Number(item.unit_price);
+        itemsToRefund.push({
+          itemRow: item,
+          quantityToRefund: qtyToRefund
+        });
+      }
+    }
+
+    if (itemsToRefund.length === 0) {
+      throw new ApiError(400, 'Không có sản phẩm nào đủ điều kiện hoàn tiền.');
+    }
+
+    for (const refundInfo of itemsToRefund) {
+      const { itemRow, quantityToRefund } = refundInfo;
+      const newRefundedQty = itemRow.refunded_quantity + quantityToRefund;
+      await client.query(
+        `update order_items
+         set refunded_quantity = $1
+         where id = $2`,
+        [newRefundedQty, itemRow.id]
+      );
+    }
+
+    const newRefundedAmount = Number(order.refunded_amount || 0) + refundAmountTotal;
+    
+    // Check if fully refunded
+    const allItemsRes = await client.query(
+      `select quantity, refunded_quantity from order_items where order_id = $1`,
+      [normalizedOrderId]
+    );
+    const isFullyRefunded = allItemsRes.rows.every(row => Number(row.quantity) === Number(row.refunded_quantity));
+    const newStatus = isFullyRefunded ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+
+    await client.query(
+      `update orders
+       set refunded_amount = $1,
+           status = $2,
+           updated_at = now()
+       where id = $3`,
+      [newRefundedAmount, newStatus, normalizedOrderId]
+    );
+
+    if (returnToStock) {
+      for (const refundInfo of itemsToRefund) {
+        const { itemRow, quantityToRefund } = refundInfo;
+        
+        const recipeRes = await client.query(
+          `select id from recipes where product_id = $1 and deleted_at is null limit 1`,
+          [itemRow.product_id]
+        );
+        
+        if (recipeRes.rows.length > 0) {
+          const recipeId = recipeRes.rows[0].id;
+          
+          const recipeItemsRes = await client.query(
+            `select ingredient_id, quantity_required from recipe_items where recipe_id = $1`,
+            [recipeId]
+          );
+          
+          for (const ri of recipeItemsRes.rows) {
+            const ingId = ri.ingredient_id;
+            const qtyNeededPerUnit = Number(ri.quantity_required);
+            const totalQtyToRestore = qtyNeededPerUnit * quantityToRefund;
+            
+            const ingRes = await client.query(
+              `select name, current_stock from ingredients where id = $1 and deleted_at is null for update`,
+              [ingId]
+            );
+            
+            if (ingRes.rows.length > 0) {
+              const ing = ingRes.rows[0];
+              const beforeStock = Number(ing.current_stock || 0);
+              const afterStock = beforeStock + totalQtyToRestore;
+              
+              await client.query(
+                `update ingredients set current_stock = $1, updated_at = now() where id = $2`,
+                [afterStock, ingId]
+              );
+              
+              await client.query(
+                `insert into stock_transactions (
+                   ingredient_id, type, quantity, before_stock, after_stock, order_id, note, created_by
+                 )
+                 values ($1, 'ORDER_REFUND', $2, $3, $4, $5, $6, $7)`,
+                [
+                  ingId,
+                  totalQtyToRestore,
+                  beforeStock,
+                  afterStock,
+                  normalizedOrderId,
+                  `Hoàn kho từ hoàn tiền đơn hàng ${order.order_code} - Lý do: ${cleanReason}`,
+                  actorUser.id
+                ]
+              );
+            }
+          }
+        }
+      }
+    }
+
+    await client.query('commit');
+    
+    // Retrieve and return updated order
+    const updatedHeaderRes = await client.query(
+      `select o.id, o.order_code, o.staff_id, u.username as staff_username,
+              o.total_amount, o.refunded_amount, o.payment_method, o.amount_received,
+              o.change_amount, o.paid_at, o.status, o.kds_status, o.kds_completed_at,
+              o.note, o.created_at, o.updated_at
+       from orders o
+       join app_users u on u.id = o.staff_id
+       where o.id = $1`,
+      [normalizedOrderId]
+    );
+    const updatedHeader = updatedHeaderRes.rows[0];
+    const updatedItemsRes = await client.query(
+      `select id, order_id, product_id, product_name_snapshot, quantity, unit_price, subtotal, refunded_quantity, created_at
+       from order_items
+       where order_id = $1`,
+      [normalizedOrderId]
+    );
+    
+    return toPublicOrder(updatedHeader, updatedItemsRes.rows);
+
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function listOrdersForAdmin(actorUser, { dateFrom, dateTo, staffId, status, orderCode } = {}) {
+  // Ensure user is admin (actorUser.role === ROLES.ADMIN)
+  if (actorUser.role !== 'ADMIN') {
+    throw new ApiError(403, 'Yêu cầu quyền Admin.');
+  }
+
+  const params = [];
+  const conditions = [];
+
+  if (staffId) {
+    params.push(staffId);
+    conditions.push(`o.staff_id = $${params.length}`);
+  }
+
+  if (status) {
+    params.push(status.toUpperCase());
+    conditions.push(`o.status = $${params.length}`);
+  } else {
+    conditions.push(`o.status in ('SUCCESS', 'PARTIALLY_REFUNDED', 'REFUNDED')`);
+  }
+
+  if (orderCode) {
+    params.push(`%${orderCode.trim()}%`);
+    conditions.push(`o.order_code ilike $${params.length}`);
+  }
+
+  if (dateFrom) {
+    params.push(dateFrom);
+    conditions.push(`o.created_at::date >= $${params.length}`);
+  }
+
+  if (dateTo) {
+    params.push(dateTo);
+    conditions.push(`o.created_at::date <= $${params.length}`);
+  }
+
+  const whereClause = conditions.length ? `where ${conditions.join(' and ')}` : '';
+
+  const result = await query(
+    `select o.id,
+            o.order_code,
+            o.staff_id,
+            u.username as staff_username,
+            o.total_amount,
+            o.refunded_amount,
+            o.payment_method,
+            o.amount_received,
+            o.change_amount,
+            o.paid_at,
+            o.status,
+            o.kds_status,
+            o.kds_completed_at,
+            o.kds_completed_by,
+            o.note,
+            o.created_at,
+            o.updated_at
+     from orders o
+     join app_users u on u.id = o.staff_id
+     ${whereClause}
+     order by o.created_at desc`,
+    params,
+  );
+
+  return result.rows.map((row) => toPublicOrder(row));
+}
+
+export async function getOrderByIdForAdmin(orderId, actorUser) {
+  if (actorUser.role !== 'ADMIN') {
+    throw new ApiError(403, 'Yêu cầu quyền Admin.');
+  }
+
+  const normalizedOrderId = normalizeId(orderId, 'Order id');
+  const result = await query(
+    `select o.id,
+            o.order_code,
+            o.staff_id,
+            u.username as staff_username,
+            o.total_amount,
+            o.refunded_amount,
+            o.payment_method,
+            o.amount_received,
+            o.change_amount,
+            o.paid_at,
+            o.status,
+            o.kds_status,
+            o.kds_completed_at,
+            o.kds_completed_by,
+            o.note,
+            o.created_at,
+            o.updated_at
+     from orders o
+     join app_users u on u.id = o.staff_id
+     where o.id = $1
+       and o.status in ('SUCCESS', 'PARTIALLY_REFUNDED', 'REFUNDED')
+     limit 1`,
+    [normalizedOrderId],
+  );
+
+  const header = result.rows[0] || null;
+
+  if (!header) {
+    throw new ApiError(404, 'Order not found.');
+  }
+
+  const [order] = await buildOrdersWithItems([header]);
+  return order;
+}
+

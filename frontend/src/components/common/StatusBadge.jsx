@@ -34,13 +34,20 @@ export function StatusBadge({ status, customLabel }) {
   } else if (
     normalizedStatus === 'LOW_STOCK' ||
     normalizedStatus === 'SAP_HET' ||
-    normalizedStatus === 'WARNING'
+    normalizedStatus === 'WARNING' ||
+    normalizedStatus === 'PARTIALLY_REFUNDED'
   ) {
     variant = 'warning';
 
     if (!customLabel) {
       if (normalizedStatus === 'LOW_STOCK' || normalizedStatus === 'SAP_HET') label = 'Sắp hết hàng';
       else if (normalizedStatus === 'WARNING') label = 'Cảnh báo';
+      else if (normalizedStatus === 'PARTIALLY_REFUNDED') label = 'Hoàn một phần';
+    }
+  } else if (normalizedStatus === 'REFUNDED') {
+    variant = 'neutral';
+    if (!customLabel) {
+      label = 'Đã hoàn tiền';
     }
   }
 

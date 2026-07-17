@@ -59,6 +59,10 @@ export function ReportsPage() {
     (sum, item) => sum + Number(item.totalOrders || 0),
     0,
   );
+  const totalRefundedSum = revenueData.reduce(
+    (sum, item) => sum + Number(item.totalRefunded || 0),
+    0,
+  );
 
   const revenueHeaders = [
     {
@@ -68,8 +72,13 @@ export function ReportsPage() {
     },
     { key: 'totalOrders', label: 'Số lượng đơn' },
     {
+      key: 'totalRefunded',
+      label: 'Tiền đã hoàn',
+      render: (row) => <span style={{ color: 'var(--color-error)' }}>{formatVND(row.totalRefunded || 0)}</span>,
+    },
+    {
       key: 'totalRevenue',
-      label: 'Tổng doanh thu',
+      label: 'Doanh thu thực (Net)',
       render: (row) => <strong>{formatVND(row.totalRevenue)}</strong>,
     },
   ];
@@ -179,9 +188,9 @@ export function ReportsPage() {
         }}
       >
         <Card
-          title="Tổng doanh thu ghi nhận"
+          title="Doanh thu thực tế (Net)"
           value={formatVND(totalRevenueSum)}
-          subtext={`Lũy kế trên ${totalOrdersSum} đơn hàng thành công`}
+          subtext={`Lũy kế trên ${totalOrdersSum} đơn (Đã trừ ${formatVND(totalRefundedSum)} hoàn trả)`}
           icon={<TrendingUp size={24} />}
           loading={isLoading}
         />

@@ -12,7 +12,10 @@ import { formatDateTime } from '../../../utils/date.js';
 
 function getPaymentMethodLabel(paymentMethod) {
   if (paymentMethod === 'CASH') {
-    return 'Tien mat';
+    return 'Tiền mặt';
+  }
+  if (paymentMethod === 'QR') {
+    return 'Chuyển khoản (VietQR)';
   }
 
   return paymentMethod || '--';

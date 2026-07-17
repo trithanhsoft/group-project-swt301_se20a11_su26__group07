@@ -17,4 +17,8 @@ export const env = {
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+  vietqrBankId: process.env.VIETQR_BANK_ID || 'mbbank',
+  vietqrAccountNo: process.env.VIETQR_ACCOUNT_NO || '000000000000',
+  vietqrAccountName: process.env.VIETQR_ACCOUNT_NAME || 'STALLBOX DEMO',
+  vietqrTemplate: process.env.VIETQR_TEMPLATE || 'compact2',
 };
