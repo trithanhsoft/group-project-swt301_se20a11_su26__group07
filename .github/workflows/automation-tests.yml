@@ -1,0 +1,270 @@
+name: "Automation Tests — Mini Coffee POS"
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  TZ: "Asia/Ho_Chi_Minh"
+
+jobs:
+  # ─── Backend Unit Tests (Vitest) ────────────────────────────────────────────
+  backend-unit:
+    name: "Backend Unit Tests (Vitest)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: mini_coffee_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Create backend .env
+        run: |
+          cat > backend/.env << 'EOF'
+          DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/mini_coffee_test
+          JWT_SECRET=${{ secrets.JWT_SECRET || 'test_jwt_secret_ci' }}
+          JWT_EXPIRES_IN=7d
+          PORT=5000
+          NODE_ENV=test
+          CLIENT_URL=http://localhost:5173
+          EOF
+
+      - name: Run backend unit tests with coverage
+        run: npm test -- --coverage
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/mini_coffee_test
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/coverage/
+          retention-days: 7
+
+  # ─── E2E Tests (Playwright) ─────────────────────────────────────────────────
+  e2e:
+    name: "E2E Tests (${{ matrix.shard }}) — Playwright"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: backend-unit
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/4, 2/4, 3/4, 4/4]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: mini_coffee_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            tests/package-lock.json
+
+      # ─── Install ─────────────────────────────────────────────────────────
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install test dependencies
+        run: npm ci
+        working-directory: tests
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox
+        working-directory: tests
+
+      # ─── Env ─────────────────────────────────────────────────────────────
+      - name: Create backend .env
+        run: |
+          cat > backend/.env << 'EOF'
+          DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/mini_coffee_test
+          JWT_SECRET=${{ secrets.JWT_SECRET || 'test_jwt_secret_ci' }}
+          JWT_EXPIRES_IN=7d
+          PORT=5000
+          NODE_ENV=test
+          CLIENT_URL=http://localhost:5173
+          MAIL_FROM_NAME=MiniCoffeePOS Test
+          EOF
+
+      - name: Create frontend .env
+        run: |
+          echo "VITE_API_BASE_URL=http://localhost:5000" > frontend/.env
+
+      - name: Create test .env.test
+        run: |
+          cat > tests/.env.test << 'EOF'
+          WEB_BASE_URL=http://localhost:5173
+          API_BASE_URL=http://localhost:5000
+          ADMIN_USERNAME=${{ secrets.TEST_ADMIN_USERNAME || 'admin' }}
+          ADMIN_PASSWORD=${{ secrets.TEST_ADMIN_PASSWORD || 'Admin123@' }}
+          STAFF_USERNAME=${{ secrets.TEST_STAFF_USERNAME || 'staff' }}
+          STAFF_PASSWORD=${{ secrets.TEST_STAFF_PASSWORD || 'Staff123@' }}
+          TZ=Asia/Ho_Chi_Minh
+          EOF
+
+      # ─── Seed DB ─────────────────────────────────────────────────────────
+      - name: Seed test database
+        run: npm run seed
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/mini_coffee_test
+
+      # ─── Start services ───────────────────────────────────────────────────
+      - name: Start backend server
+        run: npm run dev &
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/mini_coffee_test
+
+      - name: Wait for backend healthcheck
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:5000/api/health > /dev/null; then
+              echo "Backend is up!"
+              break
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 2
+          done
+
+      - name: Start frontend dev server
+        run: npm run dev &
+        working-directory: frontend
+
+      - name: Wait for frontend
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:5173 > /dev/null; then
+              echo "Frontend is up!"
+              break
+            fi
+            echo "Waiting for frontend... ($i/30)"
+            sleep 2
+          done
+
+      # ─── Run Smoke tests first ────────────────────────────────────────────
+      - name: Run smoke tests
+        run: npx playwright test --grep @smoke --reporter=list
+        working-directory: tests
+        continue-on-error: true
+
+      # ─── Run full shard ───────────────────────────────────────────────────
+      - name: Run E2E tests (shard ${{ matrix.shard }})
+        run: npx playwright test --shard=${{ matrix.shard }}
+        working-directory: tests
+        env:
+          CI: "true"
+
+      # ─── Upload artifacts ─────────────────────────────────────────────────
+      - name: Upload Playwright HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-shard-${{ strategy.job-index }}
+          path: tests/playwright-report/
+          retention-days: 14
+
+      - name: Upload traces and screenshots on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces-shard-${{ strategy.job-index }}
+          path: |
+            tests/playwright-report/trace/
+            tests/playwright-report/screenshots/
+          retention-days: 7
+
+  # ─── Merge reports ──────────────────────────────────────────────────────────
+  merge-reports:
+    name: "Merge Playwright Reports"
+    runs-on: ubuntu-latest
+    needs: e2e
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: playwright-report-shard-*
+          path: all-reports/
+
+      - name: Install Playwright
+        run: npm install @playwright/test --prefix /tmp/pw
+
+      - name: Merge reports
+        run: npx --prefix /tmp/pw playwright merge-reports --reporter=html ./all-reports
+        continue-on-error: true
+
+      - name: Upload merged report
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-merged-report
+          path: playwright-report/
+          retention-days: 30
